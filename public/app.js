@@ -719,8 +719,8 @@ class PDFComposerApp {
         exportBtn.textContent = 'EXPORTING...';
         exportBtn.disabled = true;
         
-        // Set export flag to prevent canvas interference
-        this._exportInProgress = true;
+        // Export in progress - but don't set flag that interferes with preview
+        console.log('Starting export process...');
         
         try {
             // Validate state before export
@@ -748,17 +748,11 @@ class PDFComposerApp {
             exportBtn.textContent = originalText;
             exportBtn.disabled = false;
             
-            // Clear export flag
-            this._exportInProgress = false;
+            // Export complete
+            console.log('Export process finished');
             
-            // Ensure preview remains visible after export - do this immediately
-            setTimeout(() => {
-                this.ensurePreviewVisible();
-                // Small delay before refresh to prevent visual flickering
-                setTimeout(() => {
-                    this.refreshPreviewAfterExport();
-                }, 50);
-            }, 10);
+            // Ensure preview remains visible after export
+            this.ensurePreviewVisible();
         }
     }
 
@@ -777,6 +771,7 @@ class PDFComposerApp {
             }
 
             console.log('Created export canvas with dimensions:', exportCanvas.width, 'x', exportCanvas.height);
+            console.log('Export format requested:', format);
             
             if (exportCanvas.width === 0 || exportCanvas.height === 0) {
                 throw new Error('Export canvas is empty - please ensure composition is rendered first');
@@ -807,12 +802,12 @@ class PDFComposerApp {
                     }, 'image/jpeg', 0.9);
                 });
             } else if (format === 'pdf') {
-                // Export as PDF using current canvas
-                const imageData = previewCanvas.toDataURL('image/png');
+                // Export as PDF using export canvas
+                const imageData = exportCanvas.toDataURL('image/png');
                 if (!imageData || imageData === 'data:,') {
-                    throw new Error('Failed to get canvas image data');
+                    throw new Error('Failed to get export canvas image data');
                 }
-                await this.exportCanvasToPDF(previewCanvas, imageData);
+                await this.exportCanvasToPDF(exportCanvas, imageData);
             }
 
             console.log('Export completed successfully');
@@ -863,20 +858,33 @@ class PDFComposerApp {
     }
 
     downloadFile(data, filename, mimeType) {
-        console.log('Downloading file:', filename);
+        console.log('Downloading file:', filename, 'Type:', mimeType);
+        console.log('Data type:', data instanceof Blob ? 'Blob' : typeof data);
+        console.log('Data size:', data instanceof Blob ? data.size : data.length);
         
         const blob = data instanceof Blob ? data : new Blob([data], { type: mimeType });
+        console.log('Blob created, size:', blob.size);
+        
         const url = URL.createObjectURL(blob);
+        console.log('Object URL created:', url);
         
         const link = document.createElement('a');
         link.href = url;
         link.download = filename;
+        link.style.display = 'none';
         document.body.appendChild(link);
+        
+        console.log('Triggering download click...');
         link.click();
+        
         document.body.removeChild(link);
+        console.log('Download triggered successfully');
         
         // Clean up
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+            console.log('Object URL cleaned up');
+        }, 1000);
     }
 
     dataURLToBytes(dataURL) {
@@ -1301,20 +1309,6 @@ class PDFComposerApp {
         return bytes;
     }
 
-    downloadFile(data, filename, mimeType) {
-        const blob = data instanceof Blob ? data : new Blob([data], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up object URL
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-    }
 
     showEmptyState() {
         document.getElementById('emptyState').classList.remove('hidden');
