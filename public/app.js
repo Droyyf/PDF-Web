@@ -633,9 +633,11 @@ class PDFComposerApp {
                     x, y, citationWidth, citationHeight);
             }
             
-            // Setup interactive cover if selected
+            // Setup interactive cover if selected (with small delay to ensure DOM is ready)
             if (this.selectedCover !== null) {
-                await this.setupInteractiveCover();
+                setTimeout(async () => {
+                    await this.setupInteractiveCover();
+                }, 100);
             }
             
             // Enable export button if we have composition (citations + cover)
@@ -768,22 +770,22 @@ class PDFComposerApp {
         }
 
         try {
-            // Get the current preview canvas
-            const previewCanvas = document.getElementById('previewCanvas');
-            if (!previewCanvas) {
-                throw new Error('Preview canvas not found');
+            // Create a separate export canvas to avoid interfering with the preview
+            const exportCanvas = await this.createExportCanvas();
+            if (!exportCanvas) {
+                throw new Error('Failed to create export canvas');
             }
 
-            console.log('Found preview canvas, checking dimensions:', previewCanvas.width, 'x', previewCanvas.height);
+            console.log('Created export canvas with dimensions:', exportCanvas.width, 'x', exportCanvas.height);
             
-            if (previewCanvas.width === 0 || previewCanvas.height === 0) {
-                throw new Error('Preview canvas is empty - please ensure composition is rendered first');
+            if (exportCanvas.width === 0 || exportCanvas.height === 0) {
+                throw new Error('Export canvas is empty - please ensure composition is rendered first');
             }
 
             if (format === 'png') {
                 // Export as PNG - wrap in promise to make it awaitable
                 await new Promise((resolve, reject) => {
-                    previewCanvas.toBlob((blob) => {
+                    exportCanvas.toBlob((blob) => {
                         if (blob) {
                             this.downloadFile(blob, 'composition.png', 'image/png');
                             resolve();
@@ -795,7 +797,7 @@ class PDFComposerApp {
             } else if (format === 'jpeg') {
                 // Export as JPEG - wrap in promise to make it awaitable
                 await new Promise((resolve, reject) => {
-                    previewCanvas.toBlob((blob) => {
+                    exportCanvas.toBlob((blob) => {
                         if (blob) {
                             this.downloadFile(blob, 'composition.jpg', 'image/jpeg');
                             resolve();
@@ -1385,6 +1387,91 @@ class PDFComposerApp {
         }, 50);
     }
 
+    async createExportCanvas() {
+        try {
+            // Get the current preview canvas as reference
+            const previewCanvas = document.getElementById('previewCanvas');
+            if (!previewCanvas || previewCanvas.width === 0 || previewCanvas.height === 0) {
+                console.log('Preview canvas not ready, creating export canvas from composition');
+                
+                // Create a new canvas for export
+                const exportCanvas = document.createElement('canvas');
+                const canvasWidth = 800;  // Standard export width
+                const canvasHeight = 1000; // Standard export height
+                
+                exportCanvas.width = canvasWidth;
+                exportCanvas.height = canvasHeight;
+                
+                const context = exportCanvas.getContext('2d');
+                
+                // Re-render the composition directly to export canvas
+                await this.renderCompositionToCanvas(context, canvasWidth, canvasHeight);
+                
+                return exportCanvas;
+            } else {
+                // Clone the existing preview canvas
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = previewCanvas.width;
+                exportCanvas.height = previewCanvas.height;
+                
+                const exportContext = exportCanvas.getContext('2d');
+                exportContext.drawImage(previewCanvas, 0, 0);
+                
+                return exportCanvas;
+            }
+        } catch (error) {
+            console.error('Error creating export canvas:', error);
+            return null;
+        }
+    }
+
+    async renderCompositionToCanvas(context, canvasWidth, canvasHeight) {
+        if (!this.currentPDF || this.selectedCitations.size === 0) return;
+
+        // Clear canvas
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        // Render citations
+        const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
+        const cols = Math.ceil(Math.sqrt(citationPages.length));
+        const rows = Math.ceil(citationPages.length / cols);
+        
+        const citationWidth = canvasWidth / cols;
+        const citationHeight = canvasHeight / rows;
+
+        for (let i = 0; i < citationPages.length; i++) {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = col * citationWidth;
+            const y = row * citationHeight;
+            
+            await this.renderPageToCanvas(context, citationPages[i], x, y, citationWidth, citationHeight);
+        }
+
+        // Render cover if selected
+        if (this.selectedCover !== null) {
+            const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
+            const coverViewport = coverPage.getViewport({ scale: 1 });
+            
+            // Apply transform settings
+            const coverWidth = coverViewport.width * this.coverTransform.scale;
+            const coverHeight = coverViewport.height * this.coverTransform.scale;
+            const coverX = this.coverTransform.x;
+            const coverY = this.coverTransform.y;
+            
+            const scaledCoverViewport = coverPage.getViewport({ 
+                scale: this.coverTransform.scale 
+            });
+            
+            await coverPage.render({
+                canvasContext: context,
+                viewport: scaledCoverViewport,
+                transform: [1, 0, 0, 1, coverX, coverY]
+            }).promise;
+        }
+    }
+
     updateTechnicalInfo(text, pageCount = null) {
         const techInfo = document.getElementById('technicalInfo');
         if (pageCount) {
@@ -1640,7 +1727,7 @@ class PDFComposerApp {
             context.fillRect(0, 0, canvasWidth, canvasHeight);
             
             // Render the page
-            const scale = canvasWidth / pageViewport.width;
+            const scale = canvasWidth / viewport.width;
             const scaledViewport = page.getViewport({ scale });
             
             await page.render({
@@ -1723,11 +1810,15 @@ class PDFComposerApp {
             // Setup event listeners for interactions
             this.setupCoverEventListeners();
             
-            // Show the cover container
+            // Show the cover container with validation
             const coverContainer = document.getElementById('coverImageContainer');
             if (coverContainer) {
                 coverContainer.classList.remove('hidden');
                 coverContainer.classList.add('selected');
+                console.log('Cover container made visible and interactive');
+            } else {
+                console.error('Cannot show cover container - element not found');
+                return;
             }
 
             // Update transform info
@@ -1742,7 +1833,10 @@ class PDFComposerApp {
         const coverCanvas = document.getElementById('coverCanvas');
         const coverContainer = document.getElementById('coverImageContainer');
         
-        if (!coverCanvas || !coverContainer) return;
+        if (!coverCanvas || !coverContainer) {
+            console.error('Cover canvas or container not found:', { coverCanvas: !!coverCanvas, coverContainer: !!coverContainer });
+            return;
+        }
 
         const ctx = coverCanvas.getContext('2d');
         
@@ -1778,11 +1872,29 @@ class PDFComposerApp {
         });
     }
 
+    removeCoverEventListeners() {
+        const coverContainer = document.getElementById('coverImageContainer');
+        if (coverContainer) {
+            // Clone node to remove all event listeners
+            const newCoverContainer = coverContainer.cloneNode(true);
+            coverContainer.parentNode.replaceChild(newCoverContainer, coverContainer);
+        }
+    }
+
     setupCoverEventListeners() {
         const coverContainer = document.getElementById('coverImageContainer');
         const previewCanvasContainer = document.querySelector('.preview-canvas-container');
         
-        if (!coverContainer || !previewCanvasContainer) return;
+        if (!coverContainer || !previewCanvasContainer) {
+            console.error('Cannot setup cover event listeners - missing DOM elements:', {
+                coverContainer: !!coverContainer,
+                previewCanvasContainer: !!previewCanvasContainer
+            });
+            return;
+        }
+        
+        // Remove existing listeners to prevent duplicates
+        this.removeCoverEventListeners();
 
         // Mouse events for dragging
         coverContainer.addEventListener('mousedown', this.handleCoverMouseDown.bind(this));
