@@ -10,6 +10,7 @@ class PDFComposerApp {
         this.selectedCover = null;
         this.fileId = null;
         this.currentPreviewPage = null;
+        this.progressInterval = null; // Track progress interval
         
         // Cover transform state
         this.coverTransform = {
@@ -218,13 +219,20 @@ class PDFComposerApp {
             console.log('Thumbnail generation completed');
             
             this.renderThumbnails();
-            this.showPDFViewer();
             
-            // Initialize preview with first page
-            this.currentPreviewPage = 0;
-            this.updatePreview();
+            // Complete the progress before showing PDF viewer
+            this.completeProgress();
             
-            console.log('PDF loading complete');
+            // Small delay to show 100% completion, then show PDF viewer
+            setTimeout(() => {
+                this.showPDFViewer();
+                
+                // Initialize preview with first page
+                this.currentPreviewPage = 0;
+                this.updatePreview();
+                
+                console.log('PDF loading complete');
+            }, 500);
             
         } catch (error) {
             console.error('PDF loading error:', error);
@@ -266,8 +274,10 @@ class PDFComposerApp {
                 });
 
                 // Update progress for user feedback
-                if (pageNum % 5 === 0 || pageNum === this.totalPages) {
+                if (pageNum % 2 === 0 || pageNum === this.totalPages) {
                     console.log(`Generated ${pageNum}/${this.totalPages} thumbnails`);
+                    // Allow UI to update during thumbnail generation
+                    await new Promise(resolve => setTimeout(resolve, 1));
                 }
             }
             console.log('All thumbnails generated successfully');
@@ -1332,17 +1342,47 @@ class PDFComposerApp {
         const progressText = document.getElementById('progressText');
         let progress = 0;
 
-        const interval = setInterval(() => {
+        // Clear any existing interval
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+        }
+
+        this.progressInterval = setInterval(() => {
             progress += Math.random() * 15;
-            if (progress > 95) progress = 95;
+            if (progress > 85) progress = 85; // Stop at 85% instead of 95%
             
             progressFill.style.width = progress + '%';
             progressText.textContent = Math.round(progress) + '%';
             
-            if (progress >= 95) {
-                clearInterval(interval);
+            if (progress >= 85) {
+                clearInterval(this.progressInterval);
+                this.progressInterval = null;
             }
-        }, 200);
+        }, 150); // Faster updates
+    }
+
+    completeProgress() {
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        
+        // Clear any existing interval
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+            this.progressInterval = null;
+        }
+        
+        // Smoothly complete to 100%
+        let currentProgress = parseInt(progressText.textContent) || 85;
+        const completeInterval = setInterval(() => {
+            currentProgress += 3;
+            if (currentProgress >= 100) {
+                currentProgress = 100;
+                clearInterval(completeInterval);
+            }
+            
+            progressFill.style.width = currentProgress + '%';
+            progressText.textContent = currentProgress + '%';
+        }, 50);
     }
 
     updateTechnicalInfo(text, pageCount = null) {
