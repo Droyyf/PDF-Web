@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Composer Web</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">📄</div>
+                    <h1 class="app-title">PDF COMPOSER</h1>
+                </div>
+                <div class="header-controls">
+                    <!-- Removed header upload button - using only center button -->
+                </div>
+            </div>
+            <div class="technical-line" id="technicalInfo">
+                PDF VIEWER IDLE // WAITING FOR INPUT
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Empty State -->
+            <div id="emptyState" class="empty-state">
+                <div class="empty-state-header">
+                    <h2 class="empty-title">NO PDF</h2>
+                    <div class="empty-subtitle">
+                        <span class="tech-item">📄 BCR.</span>
+                        <span class="tech-item">—</span>
+                        <span class="tech-item">⭐ STATUS</span>
+                        <span class="status-text">SYSTEM IDLE</span>
+                    </div>
+                </div>
+                <div class="empty-content">
+                    <div class="upload-card">
+                        <div class="card-icon">📁</div>
+                        <h3>OPEN PDF DOCUMENT</h3>
+                        <p>Select a PDF file to start composing</p>
+                        <button class="upload-card-btn" id="chooseFileBtn">
+                            CHOOSE FILE
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PDF Viewer -->
+            <div id="pdfViewer" class="pdf-viewer hidden">
+                <!-- Sidebar -->
+                <aside class="sidebar">
+                    <div class="sidebar-header">
+                        <h3 class="sidebar-title">SELECT PAGES</h3>
+                        <span id="pageCount" class="page-count">0</span>
+                    </div>
+                    <div class="thumbnails-container" id="thumbnailsContainer">
+                        <!-- Thumbnails will be dynamically added here -->
+                    </div>
+                </aside>
+
+                <!-- Main Preview Display -->
+                <div class="main-preview">
+                    <!-- Main Preview Panel -->
+                    <div id="previewPanel" class="preview-panel">
+                        <div class="preview-header">
+                            <h3 class="preview-title">COMPOSITION PREVIEW</h3>
+                            <div class="preview-header-controls">
+                                <button id="resetCoverBtn" class="control-btn" title="Reset cover position">↻</button>
+                                <button id="togglePreview" class="preview-toggle-btn" title="Toggle Preview">▶</button>
+                            </div>
+                        </div>
+                        <div class="preview-content">
+                            <div class="preview-canvas-container">
+                                <canvas id="previewCanvas"></canvas>
+                                <div id="coverImageContainer" class="cover-image-container hidden">
+                                    <canvas id="coverCanvas" class="cover-canvas"></canvas>
+                                    <div class="cover-selection-indicator"></div>
+                                    <div class="cover-controls">
+                                        <div class="resize-handle resize-handle-nw"></div>
+                                        <div class="resize-handle resize-handle-ne"></div>
+                                        <div class="resize-handle resize-handle-sw"></div>
+                                        <div class="resize-handle resize-handle-se"></div>
+                                    </div>
+                                </div>
+                                <div class="preview-placeholder">
+                                    <div class="placeholder-icon">📄</div>
+                                    <p>Preview will appear here</p>
+                                </div>
+                                <div class="interaction-overlay" id="interactionOverlay">
+                                    <div class="interaction-hint">
+                                        <span class="hint-text">Drag cover to reposition • Pinch or scroll to resize</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="preview-controls">
+                                <div class="transform-info">
+                                    <h4>COVER TRANSFORM</h4>
+                                    <div class="transform-details">
+                                        <div class="transform-item">
+                                            <label>Position:</label>
+                                            <span id="coverPositionInfo">0, 0</span>
+                                        </div>
+                                        <div class="transform-item">
+                                            <label>Scale:</label>
+                                            <span id="coverScaleInfo">25%</span>
+                                        </div>
+                                        <div class="transform-item">
+                                            <label>Size:</label>
+                                            <span id="coverSizeInfo">0 × 0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="export-section">
+                                    <label for="previewExportFormat" class="export-label">Export Format:</label>
+                                    <select id="previewExportFormat" class="export-format-select">
+                                        <option value="pdf">PDF</option>
+                                        <option value="png">PNG</option>
+                                        <option value="jpeg">JPEG</option>
+                                    </select>
+                                </div>
+                                <button id="exportPreviewBtn" class="export-btn" disabled>
+                                    EXPORT
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingState" class="loading-state hidden">
+                <div class="loading-content">
+                    <div class="loading-icon">📄</div>
+                    <h3>LOADING PDF DOCUMENT</h3>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0%</div>
+                    <p class="loading-caption">/// PLEASE WAIT</p>
+                </div>
+            </div>
+        </main>
+
+
+        <!-- Toast Notifications -->
+        <div id="toastContainer" class="toast-container"></div>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Initialize app when everything is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing app...');
+            if (typeof PDFComposerApp !== 'undefined') {
+                window.pdfApp = new PDFComposerApp();
+            } else {
+                console.error('PDFComposerApp class not found');
+            }
+        });
+    </script>
+</body>
+</html>
