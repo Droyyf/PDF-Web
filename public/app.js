@@ -101,6 +101,9 @@ class PDFComposerApp {
         }
         if (exportPreviewBtn) {
             exportPreviewBtn.addEventListener('click', this.exportComposition.bind(this));
+            console.log('Export button event listener added successfully');
+        } else {
+            console.error('Export button not found during setup');
         }
         if (resetCoverBtn) {
             resetCoverBtn.addEventListener('click', this.resetCoverTransform.bind(this));
@@ -703,7 +706,13 @@ class PDFComposerApp {
     }
 
     async exportComposition() {
-        console.log('Export composition started');
+        console.log('=== EXPORT COMPOSITION STARTED ===');
+        console.log('Current state:', {
+            hasPDF: !!this.currentPDF,
+            citationsCount: this.selectedCitations.size,
+            coverSelected: this.selectedCover,
+            selectedCitations: Array.from(this.selectedCitations)
+        });
         
         const format = document.getElementById('previewExportFormat').value;
         const exportBtn = document.getElementById('exportPreviewBtn');
@@ -713,8 +722,12 @@ class PDFComposerApp {
         const previewPanel = document.getElementById('previewPanel');
         const previewCanvas = document.getElementById('previewCanvas');
         const wasPreviewVisible = !previewPanel.classList.contains('hidden');
-        console.log('Preview panel visible before export:', wasPreviewVisible);
-        console.log('Preview canvas dimensions before export:', previewCanvas ? previewCanvas.width + 'x' + previewCanvas.height : 'canvas not found');
+        console.log('=== PREVIEW STATE BEFORE EXPORT ===');
+        console.log('Preview panel visible:', wasPreviewVisible);
+        console.log('Preview panel classes:', previewPanel ? previewPanel.className : 'panel not found');
+        console.log('Preview canvas exists:', !!previewCanvas);
+        console.log('Preview canvas dimensions:', previewCanvas ? previewCanvas.width + 'x' + previewCanvas.height : 'canvas not found');
+        console.log('Preview canvas style display:', previewCanvas ? previewCanvas.style.display : 'N/A');
         
         exportBtn.textContent = 'EXPORTING...';
         exportBtn.disabled = true;
@@ -750,6 +763,14 @@ class PDFComposerApp {
             
             // Export complete
             console.log('Export process finished');
+            
+            // Check preview state after export
+            console.log('=== PREVIEW STATE AFTER EXPORT ===');
+            const previewPanelAfter = document.getElementById('previewPanel');
+            const previewCanvasAfter = document.getElementById('previewCanvas');
+            console.log('Preview panel visible after:', !previewPanelAfter.classList.contains('hidden'));
+            console.log('Preview panel classes after:', previewPanelAfter.className);
+            console.log('Preview canvas display after:', previewCanvasAfter ? previewCanvasAfter.style.display : 'N/A');
             
             // Ensure preview remains visible after export
             this.ensurePreviewVisible();
