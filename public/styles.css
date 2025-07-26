@@ -10,11 +10,11 @@ body {
     font-family: 'Courier New', monospace;
     background: #000;
     color: #fff;
-    overflow: hidden;
+    overflow: auto;
 }
 
 .app-container {
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
 }
@@ -88,7 +88,8 @@ body {
     flex: 1;
     display: flex;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
+    min-height: 0;
 }
 
 /* Empty State */
