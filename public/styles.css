@@ -674,6 +674,8 @@ body {
     flex-direction: column;
     margin: 20px;
     border-radius: 4px;
+    min-height: 400px;
+    max-height: calc(100vh - 200px);
 }
 
 .preview-header {
@@ -720,7 +722,7 @@ body {
     margin: 12px;
     border: 1px solid #333;
     border-radius: 4px;
-    overflow: hidden;
+    overflow: auto;
     min-height: 300px;
     cursor: default;
     display: flex;
@@ -733,12 +735,7 @@ body {
 }
 
 #previewCanvas {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
     display: block;
-    object-fit: contain;
 }
 
 .preview-placeholder {

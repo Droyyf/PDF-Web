@@ -152,9 +152,18 @@ class PDFComposerApp {
 
         this.showLoadingState();
         
+        // Set up a timeout to prevent infinite loading
+        const loadingTimeout = setTimeout(() => {
+            console.error('PDF loading timed out after 2 minutes');
+            this.showToast('PDF loading timed out. Please try a smaller PDF file.', 'error');
+            this.showEmptyState();
+        }, 120000); // 2 minute timeout for very large files
+        
         try {
             await this.uploadPDF(file);
+            clearTimeout(loadingTimeout); // Clear timeout if successful
         } catch (error) {
+            clearTimeout(loadingTimeout); // Clear timeout on error
             console.error('Upload error:', error);
             this.showToast('Failed to upload PDF: ' + error.message, 'error');
             this.showEmptyState();
@@ -166,6 +175,7 @@ class PDFComposerApp {
         formData.append('pdf', file);
 
         try {
+            console.log('Uploading PDF to server...');
             const response = await fetch('/api/upload', {
                 method: 'POST',
                 body: formData
@@ -182,6 +192,7 @@ class PDFComposerApp {
                 this.totalPages = result.pageCount;
                 this.thumbnails = result.thumbnails;
                 
+                console.log('Upload successful, loading PDF for viewing...');
                 await this.loadPDFForViewing(file);
                 this.updateTechnicalInfo(result.filename, result.pageCount);
                 this.showToast('PDF loaded successfully', 'success');
@@ -189,6 +200,7 @@ class PDFComposerApp {
                 throw new Error(result.error || 'Upload failed');
             }
         } catch (error) {
+            console.error('Upload process failed at step:', error.message);
             throw new Error(`Network error: ${error.message}`);
         }
     }
@@ -199,14 +211,22 @@ class PDFComposerApp {
             
             // Check if PDF.js is available
             if (typeof pdfjsLib === 'undefined') {
+                console.error('PDF.js library not loaded - checking script tags...');
+                const scripts = Array.from(document.scripts);
+                const pdfJsScript = scripts.find(s => s.src.includes('pdf.min.js'));
+                console.error('PDF.js script found:', !!pdfJsScript);
+                if (pdfJsScript) {
+                    console.error('PDF.js script src:', pdfJsScript.src);
+                    console.error('PDF.js script loaded:', pdfJsScript.readyState);
+                }
                 throw new Error('PDF.js library not loaded');
             }
+            
+            console.log('PDF.js library available, loading document...');
 
             const arrayBuffer = await file.arrayBuffer();
-            console.log('PDF array buffer created, size:', arrayBuffer.byteLength);
-            
             this.currentPDF = await pdfjsLib.getDocument(arrayBuffer).promise;
-            console.log('PDF document loaded, pages:', this.currentPDF.numPages);
+            console.log('PDF document loaded successfully:', this.currentPDF.numPages, 'pages');
             
             // Verify page count matches
             if (this.totalPages !== this.currentPDF.numPages) {
@@ -217,9 +237,8 @@ class PDFComposerApp {
             this.currentPage = 0;
             
             // Generate thumbnails for all pages
-            console.log('Starting thumbnail generation...');
+            console.log('Generating thumbnails...');
             await this.generateAllThumbnails();
-            console.log('Thumbnail generation completed');
             
             this.renderThumbnails();
             
@@ -239,6 +258,14 @@ class PDFComposerApp {
             
         } catch (error) {
             console.error('PDF loading error:', error);
+            console.error('Error stack:', error.stack);
+            
+            // Clear progress and show error state
+            if (this.progressInterval) {
+                clearInterval(this.progressInterval);
+                this.progressInterval = null;
+            }
+            
             throw new Error(`Failed to load PDF for viewing: ${error.message}`);
         }
     }
@@ -251,8 +278,14 @@ class PDFComposerApp {
 
         try {
             for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
+                // Progress logged every 10 pages  
                 const page = await this.currentPDF.getPage(pageNum);
-                const viewport = page.getViewport({ scale: 0.3 }); // Small scale for thumbnails
+                // Use much smaller scale for very large documents
+                let scale = 0.3;
+                if (this.totalPages > 500) scale = 0.1;      // Very small for 500+ pages
+                else if (this.totalPages > 200) scale = 0.15; // Small for 200+ pages
+                
+                const viewport = page.getViewport({ scale });
                 
                 // Create canvas for thumbnail
                 const canvas = document.createElement('canvas');
@@ -277,10 +310,10 @@ class PDFComposerApp {
                 });
 
                 // Update progress for user feedback
-                if (pageNum % 2 === 0 || pageNum === this.totalPages) {
+                if (pageNum % 10 === 0 || pageNum === this.totalPages) {
                     console.log(`Generated ${pageNum}/${this.totalPages} thumbnails`);
-                    // Allow UI to update during thumbnail generation
-                    await new Promise(resolve => setTimeout(resolve, 1));
+                    // Allow UI to update during thumbnail generation - more frequent for large docs
+                    await new Promise(resolve => setTimeout(resolve, this.totalPages > 100 ? 5 : 1));
                 }
             }
             console.log('All thumbnails generated successfully');
@@ -392,7 +425,7 @@ class PDFComposerApp {
         const isCitation = this.selectedCitations.has(pageIndex);
         const isCover = this.selectedCover === pageIndex;
         
-        console.log(`Updating thumbnail ${pageIndex}: citation=${isCitation}, cover=${isCover}`);
+        // Removed excessive logging for performance
         
         if (isCitation && isCover) {
             element.classList.add('selected-both');
@@ -430,6 +463,8 @@ class PDFComposerApp {
         console.log('Page index:', pageIndex);
         console.log('Current cover:', this.selectedCover);
         
+        const oldCover = this.selectedCover; // Store old cover before changing
+        
         if (this.selectedCover === pageIndex) {
             this.selectedCover = null;
             console.log('Removed cover selection');
@@ -441,8 +476,13 @@ class PDFComposerApp {
         console.log('Citations selected:', Array.from(this.selectedCitations));
         console.log('Cover selected:', this.selectedCover);
         
-        // Update all thumbnails since cover selection is exclusive
-        this.renderThumbnails();
+        // Update only affected thumbnails for performance
+        if (oldCover !== null) {
+            this.updateThumbnailElement(oldCover); // Update old cover
+        }
+        if (this.selectedCover !== null) {
+            this.updateThumbnailElement(this.selectedCover); // Update new cover
+        }
         this.updatePreviewVisibility();
         
         console.log('=== COVER SELECTION COMPLETE ===');
@@ -1336,6 +1376,12 @@ class PDFComposerApp {
         document.getElementById('pdfViewer').classList.add('hidden');
         document.getElementById('loadingState').classList.add('hidden');
         this.updateTechnicalInfo('PDF VIEWER IDLE // WAITING FOR INPUT');
+        
+        // Clear any running progress intervals
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+            this.progressInterval = null;
+        }
     }
 
     showLoadingState() {
@@ -1526,6 +1572,8 @@ class PDFComposerApp {
         if (this._renderingInProgress) return;
         this._renderingInProgress = true;
         
+        // Note: Render task cancellation disabled to prevent conflicts
+        
         const context = canvas.getContext('2d');
         const container = canvas.parentElement;
 
@@ -1598,8 +1646,19 @@ class PDFComposerApp {
             }).promise;
             
             // Position cover (top-right with margin)
-            const coverX = canvasWidth - scaledCoverViewport.width - 20;
-            const coverY = 20;
+            let coverX = canvasWidth - scaledCoverViewport.width - 20;
+            let coverY = 20;
+            
+            // Ensure cover is within bounds
+            if (coverX < 0) coverX = 10; // If cover is too wide, position at left margin
+            if (coverY < 0) coverY = 10; // If cover is too tall, position at top margin
+            if (coverX + scaledCoverViewport.width > canvasWidth) {
+                coverX = canvasWidth - scaledCoverViewport.width - 10;
+            }
+            if (coverY + scaledCoverViewport.height > canvasHeight) {
+                coverY = canvasHeight - scaledCoverViewport.height - 10;
+            }
+            
             
             // Draw cover with shadow
             context.save();
@@ -1610,6 +1669,7 @@ class PDFComposerApp {
             
             context.drawImage(coverCanvas, coverX, coverY);
             context.restore();
+            
             
             // Debug elements removed for clean export
             
@@ -1696,6 +1756,8 @@ class PDFComposerApp {
 
         const canvas = document.getElementById('previewCanvas');
         if (!canvas) return;
+        
+        // Note: Render task cancellation disabled to prevent conflicts
         
         const context = canvas.getContext('2d');
         const container = canvas.parentElement;
