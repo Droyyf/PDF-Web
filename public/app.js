@@ -1611,18 +1611,7 @@ class PDFComposerApp {
             context.drawImage(coverCanvas, coverX, coverY);
             context.restore();
             
-            // Add border around cover
-            context.strokeStyle = '#ff6b9d';
-            context.lineWidth = 3;
-            context.strokeRect(coverX - 2, coverY - 2, scaledCoverViewport.width + 4, scaledCoverViewport.height + 4);
-            
-            // Add labels
-            context.fillStyle = '#000';
-            context.font = 'bold 16px Arial';
-            context.fillText(`Citation: Page ${citationPageIndex + 1}`, 15, canvasHeight - 50);
-            
-            context.fillStyle = '#ff6b9d';
-            context.fillText(`Cover: Page ${this.selectedCover + 1}`, 15, canvasHeight - 25);
+            // Debug elements removed for clean export
             
             console.log('Composition preview complete');
             
