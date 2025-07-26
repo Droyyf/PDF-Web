@@ -785,23 +785,23 @@ class PDFComposerApp {
         }
 
         try {
-            // Create a separate export canvas to avoid interfering with the preview
-            const exportCanvas = await this.createExportCanvas();
-            if (!exportCanvas) {
-                throw new Error('Failed to create export canvas');
+            // Use the existing preview canvas directly - it's already rendered
+            const previewCanvas = document.getElementById('previewCanvas');
+            if (!previewCanvas) {
+                throw new Error('Preview canvas not found');
             }
 
-            console.log('Created export canvas with dimensions:', exportCanvas.width, 'x', exportCanvas.height);
+            console.log('Using preview canvas with dimensions:', previewCanvas.width, 'x', previewCanvas.height);
             console.log('Export format requested:', format);
             
-            if (exportCanvas.width === 0 || exportCanvas.height === 0) {
-                throw new Error('Export canvas is empty - please ensure composition is rendered first');
+            if (previewCanvas.width === 0 || previewCanvas.height === 0) {
+                throw new Error('Preview canvas is empty - please ensure composition is rendered first');
             }
 
             if (format === 'png') {
                 // Export as PNG - wrap in promise to make it awaitable
                 await new Promise((resolve, reject) => {
-                    exportCanvas.toBlob((blob) => {
+                    previewCanvas.toBlob((blob) => {
                         if (blob) {
                             this.downloadFile(blob, 'composition.png', 'image/png');
                             resolve();
@@ -813,7 +813,7 @@ class PDFComposerApp {
             } else if (format === 'jpeg') {
                 // Export as JPEG - wrap in promise to make it awaitable
                 await new Promise((resolve, reject) => {
-                    exportCanvas.toBlob((blob) => {
+                    previewCanvas.toBlob((blob) => {
                         if (blob) {
                             this.downloadFile(blob, 'composition.jpg', 'image/jpeg');
                             resolve();
@@ -823,12 +823,12 @@ class PDFComposerApp {
                     }, 'image/jpeg', 0.9);
                 });
             } else if (format === 'pdf') {
-                // Export as PDF using export canvas
-                const imageData = exportCanvas.toDataURL('image/png');
+                // Export as PDF using preview canvas
+                const imageData = previewCanvas.toDataURL('image/png');
                 if (!imageData || imageData === 'data:,') {
-                    throw new Error('Failed to get export canvas image data');
+                    throw new Error('Failed to get preview canvas image data');
                 }
-                await this.exportCanvasToPDF(exportCanvas, imageData);
+                await this.exportCanvasToPDF(previewCanvas, imageData);
             }
 
             console.log('Export completed successfully');
@@ -1888,11 +1888,21 @@ class PDFComposerApp {
     }
 
     removeCoverEventListeners() {
-        const coverContainer = document.getElementById('coverImageContainer');
-        if (coverContainer) {
-            // Clone node to remove all event listeners
-            const newCoverContainer = coverContainer.cloneNode(true);
-            coverContainer.parentNode.replaceChild(newCoverContainer, coverContainer);
+        // Store references to avoid clone/replace which can break state
+        if (this.boundCoverEventListeners) {
+            const coverContainer = document.getElementById('coverImageContainer');
+            if (coverContainer) {
+                coverContainer.removeEventListener('mousedown', this.boundCoverEventListeners.mousedown);
+                coverContainer.removeEventListener('touchstart', this.boundCoverEventListeners.touchstart);
+                coverContainer.removeEventListener('wheel', this.boundCoverEventListeners.wheel);
+            }
+            
+            document.removeEventListener('mousemove', this.boundCoverEventListeners.mousemove);
+            document.removeEventListener('mouseup', this.boundCoverEventListeners.mouseup);
+            document.removeEventListener('touchmove', this.boundCoverEventListeners.touchmove);
+            document.removeEventListener('touchend', this.boundCoverEventListeners.touchend);
+            
+            this.boundCoverEventListeners = null;
         }
     }
 
@@ -1911,18 +1921,29 @@ class PDFComposerApp {
         // Remove existing listeners to prevent duplicates
         this.removeCoverEventListeners();
 
+        // Create bound functions to store references
+        this.boundCoverEventListeners = {
+            mousedown: this.handleCoverMouseDown.bind(this),
+            mousemove: this.handleCoverMouseMove.bind(this),
+            mouseup: this.handleCoverMouseUp.bind(this),
+            touchstart: this.handleCoverTouchStart.bind(this),
+            touchmove: this.handleCoverTouchMove.bind(this),
+            touchend: this.handleCoverTouchEnd.bind(this),
+            wheel: this.handleCoverWheel.bind(this)
+        };
+
         // Mouse events for dragging
-        coverContainer.addEventListener('mousedown', this.handleCoverMouseDown.bind(this));
-        document.addEventListener('mousemove', this.handleCoverMouseMove.bind(this));
-        document.addEventListener('mouseup', this.handleCoverMouseUp.bind(this));
+        coverContainer.addEventListener('mousedown', this.boundCoverEventListeners.mousedown);
+        document.addEventListener('mousemove', this.boundCoverEventListeners.mousemove);
+        document.addEventListener('mouseup', this.boundCoverEventListeners.mouseup);
 
         // Touch events for mobile
-        coverContainer.addEventListener('touchstart', this.handleCoverTouchStart.bind(this));
-        document.addEventListener('touchmove', this.handleCoverTouchMove.bind(this));
-        document.addEventListener('touchend', this.handleCoverTouchEnd.bind(this));
+        coverContainer.addEventListener('touchstart', this.boundCoverEventListeners.touchstart);
+        document.addEventListener('touchmove', this.boundCoverEventListeners.touchmove);
+        document.addEventListener('touchend', this.boundCoverEventListeners.touchend);
 
         // Wheel events for zoom
-        coverContainer.addEventListener('wheel', this.handleCoverWheel.bind(this));
+        coverContainer.addEventListener('wheel', this.boundCoverEventListeners.wheel);
 
         // Resize handle events
         const resizeHandles = coverContainer.querySelectorAll('.resize-handle');
