@@ -11,6 +11,12 @@ class PDFComposerApp {
         this.fileId = null;
         this.currentPreviewPage = null;
         this.progressInterval = null; // Track progress interval
+        this.isProcessing = false;
+        this.processingStartTime = null;
+        this.pdfWorker = null;
+        this.currentTaskId = null;
+        this.workerSupported = typeof Worker !== 'undefined';
+        this.pdfArrayBuffer = null; // Store PDF data for worker processing
         
         // Cover transform state
         this.coverTransform = {
@@ -46,6 +52,178 @@ class PDFComposerApp {
         } else {
             console.error('PDF.js library not loaded');
         }
+        
+        // Initialize thumbnail generation worker
+        this.initializeThumbnailWorker();
+    }
+    
+    initializeThumbnailWorker() {
+        if (this.workerSupported) {
+            try {
+                this.thumbnailWorker = new Worker('./pdf-worker.js');
+                this.setupWorkerMessageHandlers();
+                console.log('PDF thumbnail worker initialized successfully');
+            } catch (error) {
+                console.warn('Failed to initialize Web Worker, falling back to main thread:', error);
+                this.workerSupported = false;
+            }
+        } else {
+            console.log('Web Workers not supported, using main thread processing');
+        }
+    }
+    
+    setupWorkerMessageHandlers() {
+        if (!this.thumbnailWorker) return;
+        
+        this.thumbnailWorker.addEventListener('message', (event) => {
+            const { type, taskId, progress, message, thumbnails, error } = event.data;
+            
+            // Ignore messages from old tasks
+            if (taskId && taskId !== this.currentTaskId) {
+                return;
+            }
+            
+            switch (type) {
+                case 'PROGRESS':
+                    this.updateProgress(progress, message);
+                    // If thumbnails are provided in batches, add them immediately
+                    if (thumbnails && thumbnails.length > 0) {
+                        this.processThumbnailBatch(thumbnails);
+                    }
+                    break;
+                    
+                case 'COMPLETE':
+                    console.log('Worker completed thumbnail generation');
+                    if (thumbnails) {
+                        this.thumbnails = thumbnails;
+                    }
+                    this.onThumbnailGenerationComplete();
+                    break;
+                    
+                case 'ERROR':
+                    console.error('Worker error:', error);
+                    this.onThumbnailGenerationError(error);
+                    break;
+                    
+                case 'CANCELLED':
+                    console.log('Worker task cancelled:', message);
+                    this.onThumbnailGenerationCancelled();
+                    break;
+                    
+                case 'HEARTBEAT':
+                    // Worker is alive and responsive
+                    break;
+                    
+                default:
+                    console.log('Unknown worker message type:', type);
+            }
+        });
+        
+        this.thumbnailWorker.addEventListener('error', (error) => {
+            console.error('Worker error:', error);
+            this.onThumbnailGenerationError(error);
+        });
+    }
+    
+    processThumbnailBatch(thumbnails) {
+        // Process thumbnails as they arrive from worker
+        for (const thumbnail of thumbnails) {
+            if (thumbnail.renderData) {
+                // Handle fallback rendering for browsers without OffscreenCanvas
+                this.renderThumbnailFallback(thumbnail);
+            }
+            
+            // Add to thumbnails array if not already present
+            const existingIndex = this.thumbnails.findIndex(t => t.page === thumbnail.page);
+            if (existingIndex >= 0) {
+                this.thumbnails[existingIndex] = thumbnail;
+            } else {
+                this.thumbnails.push(thumbnail);
+            }
+        }
+        
+        // Update UI with new thumbnails
+        this.renderThumbnails();
+    }
+    
+    async renderThumbnailFallback(thumbnail) {
+        // Fallback rendering for browsers that don't support OffscreenCanvas in workers
+        if (!thumbnail.renderData || !this.currentPDF) return;
+        
+        try {
+            const page = await this.currentPDF.getPage(thumbnail.page + 1);
+            const viewport = page.getViewport({ scale: thumbnail.renderData.viewport.scale });
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+            
+            thumbnail.buffer = canvas.toDataURL('image/png');
+            thumbnail.renderData = null; // Clear render data
+            
+            page.cleanup();
+        } catch (error) {
+            console.error('Fallback rendering failed for page', thumbnail.page, error);
+        }
+    }
+    
+    onThumbnailGenerationComplete() {
+        console.log('All thumbnails generated successfully');
+        this.renderThumbnails();
+        this.completeProgress();
+        
+        // Small delay to show 100% completion, then show PDF viewer
+        setTimeout(() => {
+            this.showPDFViewer();
+        }, 500);
+        
+        // Clear processing state
+        this.isProcessing = false;
+        this.processingStartTime = null;
+        this.currentTaskId = null;
+        this.stopBackgroundKeepAlive();
+    }
+    
+    onThumbnailGenerationError(error) {
+        console.error('Thumbnail generation failed:', error);
+        
+        // Create placeholder thumbnails
+        this.thumbnails = Array.from({ length: this.totalPages }, (_, i) => ({
+            page: i,
+            buffer: null,
+            width: 200,
+            height: 300,
+            error: 'Generation failed'
+        }));
+        
+        this.renderThumbnails();
+        this.completeProgress();
+        
+        setTimeout(() => {
+            this.showPDFViewer();
+        }, 500);
+        
+        // Clear processing state
+        this.isProcessing = false;
+        this.processingStartTime = null;
+        this.currentTaskId = null;
+        this.stopBackgroundKeepAlive();
+    }
+    
+    onThumbnailGenerationCancelled() {
+        console.log('Thumbnail generation was cancelled');
+        
+        // Clear processing state
+        this.isProcessing = false;
+        this.processingStartTime = null;
+        this.currentTaskId = null;
+        this.stopBackgroundKeepAlive();
     }
 
     setupEventListeners() {
@@ -119,8 +297,313 @@ class PDFComposerApp {
             });
         }
 
+        // Page Visibility API - prevent processing interruption when tab switches
+        this.setupBackgroundProcessingSupport();
+        
+        // Initialize Web Worker for background processing
+        this.initializeWorker();
+
         // Keyboard shortcuts
         document.addEventListener('keydown', this.handleKeyPress.bind(this));
+    }
+
+    setupBackgroundProcessingSupport() {
+        // Enhanced Page Visibility API handling
+        if (typeof document.visibilityState !== 'undefined') {
+            document.addEventListener('visibilitychange', () => {
+                this.handleVisibilityChange();
+            });
+        }
+
+        // Prevent page unload during processing
+        window.addEventListener('beforeunload', (event) => {
+            if (this.isProcessing) {
+                const message = 'PDF is still processing. Are you sure you want to leave?';
+                event.preventDefault();
+                event.returnValue = message;
+                return message;
+            }
+        });
+
+        // Enhanced browser throttling detection and mitigation
+        this.setupThrottlingDetection();
+        
+        // Wake Lock API for keeping tab active (if supported)
+        this.initializeWakeLock();
+        
+        // Focus/blur events for additional tab state tracking
+        window.addEventListener('focus', () => this.handleTabFocus());
+        window.addEventListener('blur', () => this.handleTabBlur());
+        
+        // Cleanup on page unload
+        window.addEventListener('unload', () => this.cleanup());
+        window.addEventListener('pagehide', () => this.cleanup());
+    }
+    
+    handleVisibilityChange() {
+        const isHidden = document.visibilityState === 'hidden';
+        
+        if (this.isProcessing) {
+            if (isHidden) {
+                console.log('Tab became inactive during processing - activating background preservation');
+                this.activateBackgroundPreservation();
+            } else {
+                console.log('Tab became active again - deactivating background preservation');
+                this.deactivateBackgroundPreservation();
+                // Send ping to worker to ensure it's still responsive
+                this.pingWorker();
+            }
+        }
+    }
+    
+    handleTabFocus() {
+        if (this.isProcessing) {
+            console.log('Tab gained focus during processing');
+            this.deactivateBackgroundPreservation();
+            this.pingWorker();
+        }
+    }
+    
+    handleTabBlur() {
+        if (this.isProcessing) {
+            console.log('Tab lost focus during processing');
+            this.activateBackgroundPreservation();
+        }
+    }
+    
+    activateBackgroundPreservation() {
+        // Multiple strategies to keep processing alive in background
+        this.startBackgroundKeepAlive();
+        this.requestWakeLock();
+        this.startHeartbeat();
+        
+        // Additional mitigation for throttling
+        if (this.thumbnailWorker) {
+            // Worker continues processing regardless of tab state
+            console.log('Worker-based processing continues in background');
+        }
+    }
+    
+    deactivateBackgroundPreservation() {
+        this.stopBackgroundKeepAlive();
+        this.releaseWakeLock();
+        this.stopHeartbeat();
+    }
+    
+    setupThrottlingDetection() {
+        // Detect when browser is throttling setTimeout/setInterval
+        this.throttlingDetectionInterval = null;
+        this.lastHeartbeat = Date.now();
+        this.heartbeatInterval = null;
+    }
+    
+    startHeartbeat() {
+        if (this.heartbeatInterval) return;
+        
+        this.heartbeatInterval = setInterval(() => {
+            const now = Date.now();
+            const timeSinceLastBeat = now - this.lastHeartbeat;
+            
+            // If more than 2 seconds have passed, we might be throttled
+            if (timeSinceLastBeat > 2000) {
+                console.warn('Possible browser throttling detected:', timeSinceLastBeat + 'ms gap');
+                
+                // Additional mitigation strategies
+                this.mitigateThrottling();
+            }
+            
+            this.lastHeartbeat = now;
+            
+            // Update title to show we're still alive
+            if (this.isProcessing && document.visibilityState === 'hidden') {
+                const elapsed = Math.floor((Date.now() - this.processingStartTime) / 1000);
+                document.title = `PDF Composer - Processing... (${elapsed}s)`;
+            }
+        }, 1000);
+    }
+    
+    stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+    }
+    
+    mitigateThrottling() {
+        // Use multiple timer strategies to combat throttling
+        
+        // Strategy 1: MessageChannel for immediate scheduling
+        if (typeof MessageChannel !== 'undefined') {
+            const channel = new MessageChannel();
+            channel.port2.postMessage(null);
+        }
+        
+        // Strategy 2: requestAnimationFrame with forced frame
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => {
+                // Force a frame even when hidden
+            });
+        }
+        
+        // Strategy 3: Worker heartbeat
+        this.pingWorker();
+    }
+    
+    pingWorker() {
+        if (this.thumbnailWorker && this.currentTaskId) {
+            this.thumbnailWorker.postMessage({
+                type: 'PING',
+                taskId: this.currentTaskId
+            });
+        }
+    }
+
+    async initializeWakeLock() {
+        // Initialize wake lock support detection
+        this.wakeLockSupported = 'wakeLock' in navigator;
+        this.wakeLock = null;
+        
+        if (this.wakeLockSupported) {
+            console.log('Wake Lock API is supported');
+        } else {
+            console.log('Wake Lock API not supported in this browser');
+        }
+    }
+    
+    async requestWakeLock() {
+        if (!this.wakeLockSupported || this.wakeLock) return;
+        
+        try {
+            this.wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Screen wake lock acquired');
+            
+            // Handle wake lock release
+            this.wakeLock.addEventListener('release', () => {
+                console.log('Screen wake lock was released');
+                this.wakeLock = null;
+            });
+            
+        } catch (err) {
+            console.warn('Could not acquire screen wake lock:', err);
+        }
+    }
+    
+    async releaseWakeLock() {
+        if (this.wakeLock) {
+            try {
+                await this.wakeLock.release();
+                this.wakeLock = null;
+                console.log('Screen wake lock released');
+            } catch (err) {
+                console.warn('Could not release screen wake lock:', err);
+            }
+        }
+    }
+
+    async startBackgroundKeepAlive() {
+        // Simplified keep-alive - just update title periodically
+        if (!this.keepAliveInterval) {
+            this.keepAliveInterval = setInterval(() => {
+                // Update title with current time to show activity
+                if (this.isProcessing) {
+                    const elapsed = Math.floor((Date.now() - this.processingStartTime) / 1000);
+                    document.title = `PDF Composer - Processing... (${elapsed}s)`;
+                }
+            }, 5000); // Every 5 seconds
+        }
+    }
+
+    stopBackgroundKeepAlive() {
+        // Clear keep-alive interval
+        if (this.keepAliveInterval) {
+            clearInterval(this.keepAliveInterval);
+            this.keepAliveInterval = null;
+        }
+    }
+
+    initializeWorker() {
+        if (this.workerSupported) {
+            try {
+                this.pdfWorker = new Worker('./pdf-worker.js');
+                this.pdfWorker.addEventListener('message', this.handleWorkerMessage.bind(this));
+                this.pdfWorker.addEventListener('error', (error) => {
+                    console.error('PDF Worker error:', error);
+                    this.workerSupported = false;
+                    this.pdfWorker = null;
+                });
+                console.log('PDF Worker initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize PDF Worker:', error);
+                this.workerSupported = false;
+                this.pdfWorker = null;
+            }
+        }
+    }
+
+    handleWorkerMessage(event) {
+        const { type, data, taskId, progress, message, pageNum, totalPages, thumbnails, error } = event.data;
+        
+        // Only process messages for current task
+        if (taskId !== this.currentTaskId) return;
+        
+        switch (type) {
+            case 'PDF_LOADED':
+                console.log('PDF loaded in worker, total pages:', data?.totalPages || totalPages);
+                break;
+                
+            case 'PROGRESS':
+                this.updateProgress(progress, message);
+                if (pageNum % 10 === 0) {
+                    console.log(`Generated ${pageNum}/${totalPages} thumbnails`);
+                    document.title = `PDF Composer - Loading ${Math.round(progress)}%`;
+                }
+                break;
+                
+            case 'THUMBNAILS_BATCH':
+                // Add batch of thumbnails to our array
+                for (const thumbnail of thumbnails) {
+                    this.thumbnails[thumbnail.page] = thumbnail;
+                }
+                this.updateThumbnailUI();
+                break;
+                
+            case 'THUMBNAILS_COMPLETE':
+                console.log('All thumbnails generated successfully via worker');
+                this.finalizeThumbnailGeneration();
+                break;
+                
+            case 'ERROR':
+                console.error('Worker error:', error);
+                this.handleWorkerError(error);
+                break;
+                
+            case 'CANCELLED':
+                console.log('Worker task cancelled');
+                break;
+        }
+    }
+
+    finalizeThumbnailGeneration() {
+        // Restore original title
+        document.title = 'PDF Composer Web';
+        
+        // Clear processing state
+        this.isProcessing = false;
+        this.processingStartTime = null;
+        this.stopBackgroundKeepAlive();
+        
+        // Update UI
+        this.updateThumbnailUI();
+        this.updateProgress(100, 'PDF loaded successfully!');
+    }
+
+    handleWorkerError(error) {
+        console.error('Worker failed, falling back to main thread processing:', error);
+        this.workerSupported = false;
+        this.pdfWorker = null;
+        
+        // Fall back to main thread processing
+        this.generateAllThumbnails();
     }
 
     handleKeyPress(event) {
@@ -151,6 +634,7 @@ class PDFComposerApp {
         }
 
         this.showLoadingState();
+        this.updateProgress(5, 'File selected, starting upload...');
         
         // Set up a timeout to prevent infinite loading
         const loadingTimeout = setTimeout(() => {
@@ -176,6 +660,8 @@ class PDFComposerApp {
 
         try {
             console.log('Uploading PDF to server...');
+            this.updateProgress(10, 'Uploading PDF to server...');
+            
             const response = await fetch('/api/upload', {
                 method: 'POST',
                 body: formData
@@ -185,6 +671,7 @@ class PDFComposerApp {
                 throw new Error(`Upload failed: ${response.statusText}`);
             }
 
+            this.updateProgress(25, 'Processing PDF on server...');
             const result = await response.json();
             
             if (result.success) {
@@ -192,6 +679,7 @@ class PDFComposerApp {
                 this.totalPages = result.pageCount;
                 this.thumbnails = result.thumbnails;
                 
+                this.updateProgress(30, 'Upload complete, loading PDF for viewing...');
                 console.log('Upload successful, loading PDF for viewing...');
                 await this.loadPDFForViewing(file);
                 this.updateTechnicalInfo(result.filename, result.pageCount);
@@ -223,8 +711,12 @@ class PDFComposerApp {
             }
             
             console.log('PDF.js library available, loading document...');
+            this.updateProgress(35, 'Loading PDF document...');
 
             const arrayBuffer = await file.arrayBuffer();
+            this.pdfArrayBuffer = arrayBuffer; // Store for worker processing
+            this.updateProgress(40, 'Parsing PDF structure...');
+            
             this.currentPDF = await pdfjsLib.getDocument(arrayBuffer).promise;
             console.log('PDF document loaded successfully:', this.currentPDF.numPages, 'pages');
             
@@ -237,6 +729,7 @@ class PDFComposerApp {
             this.currentPage = 0;
             
             // Generate thumbnails for all pages
+            this.updateProgress(50, 'PDF loaded, generating thumbnails...');
             console.log('Generating thumbnails...');
             await this.generateAllThumbnails();
             
@@ -276,57 +769,223 @@ class PDFComposerApp {
         console.log('Generating thumbnails for', this.totalPages, 'pages...');
         this.thumbnails = [];
 
+        // Set processing state
+        this.isProcessing = true;
+        this.processingStartTime = Date.now();
+
+        // Use simple main thread processing with enhanced background support
+        await this.generateThumbnailsMainThread();
+    }
+    
+    async generateThumbnailsWithWorker() {
+        try {
+            console.log('Using Web Worker for thumbnail generation');
+            
+            // Generate unique task ID
+            this.currentTaskId = 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            
+            // Convert PDF to ArrayBuffer for worker
+            const pdfArrayBuffer = await this.getPDFArrayBuffer();
+            
+            // Send task to worker
+            this.pdfWorker.postMessage({
+                type: 'GENERATE_THUMBNAILS',
+                taskId: this.currentTaskId,
+                data: {
+                    pdfData: pdfArrayBuffer,
+                    totalPages: this.totalPages,
+                    options: {
+                        batchSize: Math.max(1, Math.min(10, Math.floor(this.totalPages / 20))), // Dynamic batch size
+                        totalPages: this.totalPages
+                    }
+                }
+            });
+            
+            // Worker will handle progress updates and completion via message handlers
+            
+        } catch (error) {
+            console.error('Worker processing failed, falling back to main thread:', error);
+            this.workerSupported = false;
+            await this.generateThumbnailsMainThread();
+        }
+    }
+    
+    async getPDFArrayBuffer() {
+        // Get the PDF data as ArrayBuffer for worker processing
+        
+        // First try to get from the loaded PDF document
+        if (this.currentPDF && this.currentPDF._transport && this.currentPDF._transport._source) {
+            const source = this.currentPDF._transport._source;
+            if (source.data) {
+                return source.data;
+            }
+        }
+        
+        // Try to get from stored buffer if available
+        if (this.pdfArrayBuffer) {
+            return this.pdfArrayBuffer;
+        }
+        
+        // Fallback: re-fetch PDF data if not available
+        if (this.fileId) {
+            console.log('Re-fetching PDF data for worker processing');
+            const response = await fetch(`/api/get-pdf/${this.fileId}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch PDF data: ${response.statusText}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            this.pdfArrayBuffer = arrayBuffer; // Store for future use
+            return arrayBuffer;
+        }
+        
+        throw new Error('PDF data not available for worker processing');
+    }
+    
+    async generateThumbnailsMainThread() {
+        console.log('=== THUMBNAIL DEBUG: Starting generation ===');
+        console.log('Total pages:', this.totalPages);
+        console.log('Document visibility state:', document.visibilityState);
+        console.log('Document hidden:', document.hidden);
+        
+        // Store original title to restore later
+        const originalTitle = document.title;
+        
+        // Track timing and browser throttling
+        let lastProcessTime = performance.now();
+        let throttleDetectionCount = 0;
+        
+        // Page Visibility API monitoring
+        const handleVisibilityChange = () => {
+            console.log('=== VISIBILITY CHANGE ===');
+            console.log('New visibility state:', document.visibilityState);
+            console.log('Document hidden:', document.hidden);
+            console.log('Performance now:', performance.now());
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
         try {
             for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
-                // Progress logged every 10 pages  
-                const page = await this.currentPDF.getPage(pageNum);
-                // Use much smaller scale for very large documents
-                let scale = 0.3;
-                if (this.totalPages > 500) scale = 0.1;      // Very small for 500+ pages
-                else if (this.totalPages > 200) scale = 0.15; // Small for 200+ pages
-                
-                const viewport = page.getViewport({ scale });
-                
-                // Create canvas for thumbnail
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
+                try {
+                    const startTime = performance.now();
+                    console.log(`=== Processing page ${pageNum}/${this.totalPages} at ${startTime.toFixed(2)}ms ===`);
+                    
+                    const page = await this.currentPDF.getPage(pageNum);
+                    console.log(`Page ${pageNum} loaded in ${(performance.now() - startTime).toFixed(2)}ms`);
+                    
+                    // Use much smaller scale for very large documents
+                    let scale = 0.3;
+                    if (this.totalPages > 500) scale = 0.1;      // Very small for 500+ pages
+                    else if (this.totalPages > 200) scale = 0.15; // Small for 200+ pages
+                    
+                    const viewport = page.getViewport({ scale });
+                    
+                    // Create canvas for thumbnail
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
 
-                // Render page to canvas
-                await page.render({
-                    canvasContext: context,
-                    viewport: viewport
-                }).promise;
+                    const renderStartTime = performance.now();
+                    // Render page to canvas
+                    await page.render({
+                        canvasContext: context,
+                        viewport: viewport
+                    }).promise;
+                    console.log(`Page ${pageNum} rendered in ${(performance.now() - renderStartTime).toFixed(2)}ms`);
 
-                // Convert to base64
-                const thumbnailDataURL = canvas.toDataURL('image/png');
-                
-                this.thumbnails.push({
-                    page: pageNum - 1,
-                    buffer: thumbnailDataURL,
-                    width: viewport.width,
-                    height: viewport.height
-                });
+                    // Convert to base64
+                    const thumbnailDataURL = canvas.toDataURL('image/png');
+                    
+                    this.thumbnails.push({
+                        page: pageNum - 1,
+                        buffer: thumbnailDataURL,
+                        width: viewport.width,
+                        height: viewport.height
+                    });
 
-                // Update progress for user feedback
-                if (pageNum % 10 === 0 || pageNum === this.totalPages) {
-                    console.log(`Generated ${pageNum}/${this.totalPages} thumbnails`);
-                    // Allow UI to update during thumbnail generation - more frequent for large docs
-                    await new Promise(resolve => setTimeout(resolve, this.totalPages > 100 ? 5 : 1));
+                    // Update progress for user feedback
+                    const thumbnailProgress = 50 + (pageNum / this.totalPages) * 50; // From 50% to 100%
+                    this.updateProgress(thumbnailProgress, `Generating thumbnails... ${pageNum}/${this.totalPages}`);
+                    
+                    const endTime = performance.now();
+                    const processingTime = endTime - startTime;
+                    console.log(`Page ${pageNum} total processing time: ${processingTime.toFixed(2)}ms`);
+                    
+                    // Detect browser throttling
+                    if (pageNum > 1) {
+                        const timeSinceLastPage = startTime - lastProcessTime;
+                        if (timeSinceLastPage > 1000) { // More than 1 second gap indicates potential throttling
+                            throttleDetectionCount++;
+                            console.warn(`=== POTENTIAL THROTTLING DETECTED ===`);
+                            console.warn(`Gap since last page: ${timeSinceLastPage.toFixed(2)}ms`);
+                            console.warn(`Throttle detection count: ${throttleDetectionCount}`);
+                            console.warn(`Visibility state: ${document.visibilityState}`);
+                        }
+                    }
+                    lastProcessTime = endTime;
+                    
+                    // Enhanced background processing with anti-throttling
+                    if (pageNum % 3 === 0 || pageNum === this.totalPages) {
+                        console.log(`Generated ${pageNum}/${this.totalPages} thumbnails`);
+                        console.log(`Throttle detections so far: ${throttleDetectionCount}`);
+                        
+                        // Update document title to show progress (visible even when tab is inactive)
+                        const progressPercent = Math.round(thumbnailProgress);
+                        document.title = `PDF Composer - Loading ${progressPercent}%`;
+                        
+                        // Force immediate UI update
+                        this.updateThumbnailUI();
+                        
+                        // Use enhanced yielding with anti-throttling
+                        await this.yieldToMainThread();
+                        
+                        // Additional anti-throttling: tiny DOM manipulation
+                        const progressEl = document.getElementById('progressText');
+                        if (progressEl) {
+                            progressEl.style.opacity = progressEl.style.opacity === '1' ? '0.999' : '1';
+                        }
+                        
+                        console.log(`Yield complete for batch ending at page ${pageNum}`);
+                    }
+                    
+                    // Clean up page
+                    page.cleanup();
+                    
+                } catch (pageError) {
+                    console.error(`Error generating thumbnail for page ${pageNum}:`, pageError);
+                    // Add placeholder thumbnail for failed page
+                    this.thumbnails.push({
+                        page: pageNum - 1,
+                        buffer: null,
+                        width: 200,
+                        height: 300
+                    });
+                    // Continue with next page
                 }
             }
-            console.log('All thumbnails generated successfully');
+            
+            console.log('=== THUMBNAIL DEBUG: Generation complete ===');
+            console.log(`Total throttle detections: ${throttleDetectionCount}`);
+            console.log(`Final visibility state: ${document.visibilityState}`);
+            
+            // Complete processing
+            this.onThumbnailGenerationComplete();
+            
         } catch (error) {
             console.error('Error generating thumbnails:', error);
-            // Create placeholder thumbnails if generation fails
-            this.thumbnails = Array.from({ length: this.totalPages }, (_, i) => ({
-                page: i,
-                buffer: null,
-                width: 200,
-                height: 300
-            }));
+            this.onThumbnailGenerationError(error);
+        } finally {
+            // Remove visibility listener
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            // Restore original title
+            document.title = originalTitle;
         }
+    }
+    
+    async yieldToMainThread() {
+        // Simple immediate return without yielding - prevent browser throttling
+        return Promise.resolve();
     }
 
     // renderCurrentPage removed - using preview only
@@ -341,6 +1000,22 @@ class PDFComposerApp {
         }
 
         document.getElementById('pageCount').textContent = this.totalPages;
+    }
+    
+    updateThumbnailUI() {
+        // Update thumbnail images that have been loaded without regenerating entire UI
+        const container = document.getElementById('thumbnailsContainer');
+        if (!container) return;
+        
+        for (let i = 0; i < this.totalPages; i++) {
+            const thumbnailElement = container.querySelector(`[data-page="${i}"]`);
+            if (thumbnailElement) {
+                const imageContainer = thumbnailElement.querySelector('.thumbnail-image');
+                if (imageContainer) {
+                    imageContainer.innerHTML = this.getThumbnailImageHTML(i);
+                }
+            }
+        }
     }
 
     createThumbnailElement(pageIndex) {
@@ -825,23 +1500,27 @@ class PDFComposerApp {
         }
 
         try {
-            // Use the existing preview canvas directly - it's already rendered
-            const previewCanvas = document.getElementById('previewCanvas');
-            if (!previewCanvas) {
-                throw new Error('Preview canvas not found');
-            }
-
-            console.log('Using preview canvas with dimensions:', previewCanvas.width, 'x', previewCanvas.height);
+            console.log('=== CALLING CREATE EXPORT CANVAS ===');
+            // Create a composite canvas that includes both background and cover
+            // Use different scales for different formats - enhanced for maximum quality
+            let scale = 3; // Default high scale
+            if (format === 'png') scale = 4; // Maximum quality for PNG
+            if (format === 'jpeg') scale = 3; // High quality for JPEG  
+            if (format === 'pdf') scale = 4; // Maximum quality for PDF
+            
+            const exportCanvas = await this.createExportCanvas(scale);
+            console.log('=== EXPORT CANVAS CREATED SUCCESSFULLY ===');
+            console.log('Created export canvas with dimensions:', exportCanvas.width, 'x', exportCanvas.height);
             console.log('Export format requested:', format);
             
-            if (previewCanvas.width === 0 || previewCanvas.height === 0) {
-                throw new Error('Preview canvas is empty - please ensure composition is rendered first');
+            if (exportCanvas.width === 0 || exportCanvas.height === 0) {
+                throw new Error('Export canvas is empty - please ensure composition is rendered first');
             }
 
             if (format === 'png') {
                 // Export as PNG - wrap in promise to make it awaitable
                 await new Promise((resolve, reject) => {
-                    previewCanvas.toBlob((blob) => {
+                    exportCanvas.toBlob((blob) => {
                         if (blob) {
                             this.downloadFile(blob, 'composition.png', 'image/png');
                             resolve();
@@ -853,22 +1532,22 @@ class PDFComposerApp {
             } else if (format === 'jpeg') {
                 // Export as JPEG - wrap in promise to make it awaitable
                 await new Promise((resolve, reject) => {
-                    previewCanvas.toBlob((blob) => {
+                    exportCanvas.toBlob((blob) => {
                         if (blob) {
                             this.downloadFile(blob, 'composition.jpg', 'image/jpeg');
                             resolve();
                         } else {
                             reject(new Error('Failed to create JPEG blob'));
                         }
-                    }, 'image/jpeg', 0.9);
+                    }, 'image/jpeg', 0.95);
                 });
             } else if (format === 'pdf') {
-                // Export as PDF using preview canvas
-                const imageData = previewCanvas.toDataURL('image/png');
+                // Export as PDF using export canvas
+                const imageData = exportCanvas.toDataURL('image/png');
                 if (!imageData || imageData === 'data:,') {
                     throw new Error('Failed to get preview canvas image data');
                 }
-                await this.exportCanvasToPDF(previewCanvas, imageData);
+                await this.exportCanvasToPDF(exportCanvas, imageData);
             }
 
             console.log('Export completed successfully');
@@ -1132,44 +1811,131 @@ class PDFComposerApp {
     }
 
     calculateCoverDimensions(canvasWidth, canvasHeight) {
-        // Get preview canvas container dimensions to calculate scale
-        const previewCanvasContainer = document.querySelector('.preview-canvas-container');
-        const containerRect = previewCanvasContainer.getBoundingClientRect();
+        console.log('=== CALCULATING COVER DIMENSIONS FOR EXPORT ===');
+        console.log('Export canvas size:', canvasWidth, 'x', canvasHeight);
+        console.log('Current cover transform:', this.coverTransform);
         
-        // Calculate the ratio between export canvas and preview container
-        const scaleRatioX = canvasWidth / containerRect.width;
-        const scaleRatioY = canvasHeight / containerRect.height;
+        // Get preview canvas dimensions directly instead of container
+        const previewCanvas = document.getElementById('previewCanvas');
+        if (!previewCanvas) {
+            console.error('Preview canvas not found for dimension calculation');
+            return null;
+        }
         
-        // Use the smaller ratio to maintain proportions
+        const previewWidth = previewCanvas.width;
+        const previewHeight = previewCanvas.height;
+        
+        console.log('Preview canvas size:', previewWidth, 'x', previewHeight);
+        
+        // Calculate the ratio between export canvas and preview canvas
+        const scaleRatioX = canvasWidth / previewWidth;
+        const scaleRatioY = canvasHeight / previewHeight;
+        
+        // Use consistent scaling (usually they should be the same)
         const scaleRatio = Math.min(scaleRatioX, scaleRatioY);
         
-        // Calculate cover dimensions based on user's transform
-        const coverWidth = this.coverTransform.originalWidth * this.coverTransform.scale * scaleRatio;
-        const coverHeight = this.coverTransform.originalHeight * this.coverTransform.scale * scaleRatio;
+        console.log('Scale ratios - X:', scaleRatioX, 'Y:', scaleRatioY, 'Final:', scaleRatio);
         
-        // Calculate position based on user's transform
-        const coverX = this.coverTransform.x * scaleRatio;
-        const coverY = this.coverTransform.y * scaleRatio;
+        // Convert from container coordinates to canvas-relative coordinates first
+        // We need to get the container and canvas positioning to do this correctly
+        let coverX, coverY, coverWidth, coverHeight;
         
-        return {
+        const previewCanvasContainer = document.querySelector('.preview-canvas-container');
+        if (previewCanvasContainer) {
+            const canvasRect = previewCanvas.getBoundingClientRect();
+            const containerRect = previewCanvasContainer.getBoundingClientRect();
+            
+            // Calculate citation page bounds in container coordinates
+            const citationLeft = canvasRect.left - containerRect.left;
+            const citationTop = canvasRect.top - containerRect.top;
+            
+            // Convert cover position from container coordinates to citation page relative coordinates
+            const citationRelativeX = this.coverTransform.x - citationLeft;
+            const citationRelativeY = this.coverTransform.y - citationTop;
+            
+            // Convert to relative positioning within the canvas
+            const relativeX = citationRelativeX / previewWidth;
+            const relativeY = citationRelativeY / previewHeight;
+            
+            // Calculate export position based on relative positioning
+            coverX = relativeX * canvasWidth;
+            coverY = relativeY * canvasHeight;
+            
+            // Calculate cover dimensions - scale should be relative to export canvas size
+            coverWidth = this.coverTransform.originalWidth * this.coverTransform.scale * scaleRatio;
+            coverHeight = this.coverTransform.originalHeight * this.coverTransform.scale * scaleRatio;
+            
+            console.log('Cover coordinate conversion:', {
+                containerCoords: { x: this.coverTransform.x, y: this.coverTransform.y },
+                citationBounds: { left: citationLeft, top: citationTop },
+                relativeCoords: { x: citationRelativeX, y: citationRelativeY },
+                normalizedCoords: { x: relativeX, y: relativeY },
+                exportCoords: { x: coverX, y: coverY }
+            });
+        } else {
+            // Fallback if container not found - use direct scaling
+            console.warn('Container not found, using direct coordinate scaling');
+            coverWidth = this.coverTransform.originalWidth * this.coverTransform.scale * scaleRatio;
+            coverHeight = this.coverTransform.originalHeight * this.coverTransform.scale * scaleRatio;
+            coverX = this.coverTransform.x * scaleRatio;
+            coverY = this.coverTransform.y * scaleRatio;
+        }
+        
+        // Validate dimensions - if they're invalid, use fallback values
+        if (coverWidth <= 0 || coverHeight <= 0 || this.coverTransform.originalWidth <= 0) {
+            console.warn('Invalid cover dimensions detected, using fallback values');
+            const fallbackWidth = canvasWidth * 0.25;
+            const fallbackHeight = canvasHeight * 0.25;
+            const fallbackX = canvasWidth - fallbackWidth - 20;
+            const fallbackY = 20;
+            
+            const fallback = {
+                x: fallbackX,
+                y: fallbackY,
+                width: fallbackWidth,
+                height: fallbackHeight
+            };
+            
+            console.log('Using fallback cover dimensions:', fallback);
+            return fallback;
+        }
+        
+        const result = {
             x: coverX,
             y: coverY,
             width: coverWidth,
             height: coverHeight
         };
+        
+        console.log('Calculated cover dimensions for export:', result);
+        return result;
     }
 
     async renderCoverOverlay(context, coverDimensions) {
+        console.log('=== RENDERING COVER OVERLAY FOR EXPORT ===');
+        console.log('Cover dimensions:', coverDimensions);
+        console.log('Selected cover page:', this.selectedCover);
+        
+        if (!coverDimensions) {
+            console.error('No cover dimensions provided - skipping cover render');
+            return;
+        }
+        
         try {
             const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
             const viewport = coverPage.getViewport({ scale: 1 });
+            
+            console.log('Cover page viewport:', viewport.width, 'x', viewport.height);
             
             // Calculate scale to match the cover dimensions
             const scaleX = coverDimensions.width / viewport.width;
             const scaleY = coverDimensions.height / viewport.height;
             const scale = Math.min(scaleX, scaleY);
             
+            console.log('Cover scale calculation - X:', scaleX, 'Y:', scaleY, 'Final:', scale);
+            
             const scaledViewport = coverPage.getViewport({ scale });
+            console.log('Scaled cover viewport:', scaledViewport.width, 'x', scaledViewport.height);
             
             // Create temporary canvas for cover
             const coverCanvas = document.createElement('canvas');
@@ -1177,11 +1943,15 @@ class PDFComposerApp {
             coverCanvas.width = scaledViewport.width;
             coverCanvas.height = scaledViewport.height;
             
+            console.log('Rendering cover page to temp canvas...');
+            
             // Render cover page
             await coverPage.render({
                 canvasContext: coverContext,
                 viewport: scaledViewport
             }).promise;
+            
+            console.log('Cover page rendered, applying to export canvas at:', coverDimensions.x, coverDimensions.y);
             
             // Add subtle shadow effect
             context.shadowColor = 'rgba(0, 0, 0, 0.3)';
@@ -1190,6 +1960,10 @@ class PDFComposerApp {
             context.shadowOffsetY = 2;
             
             // Draw cover at the exact user position
+            console.log('Drawing cover to export canvas with parameters:');
+            console.log('Source:', 0, 0, scaledViewport.width, scaledViewport.height);
+            console.log('Destination:', coverDimensions.x, coverDimensions.y, coverDimensions.width, coverDimensions.height);
+            
             context.drawImage(
                 coverCanvas, 
                 0, 0, scaledViewport.width, scaledViewport.height,
@@ -1203,7 +1977,7 @@ class PDFComposerApp {
             context.shadowOffsetX = 0;
             context.shadowOffsetY = 0;
             
-            console.log('Cover overlay rendered at position:', coverDimensions);
+            console.log('Cover overlay successfully rendered to export canvas!');
             
         } catch (error) {
             console.error('Error rendering cover overlay:', error);
@@ -1390,8 +2164,8 @@ class PDFComposerApp {
         document.getElementById('loadingState').classList.remove('hidden');
         this.updateTechnicalInfo('LOADING PDF DOCUMENT...');
         
-        // Simulate progress for user feedback
-        this.simulateProgress();
+        // Initialize progress at 0%
+        this.updateProgress(0, 'Preparing to load PDF...');
     }
 
     showPDFViewer() {
@@ -1400,56 +2174,39 @@ class PDFComposerApp {
         document.getElementById('pdfViewer').classList.remove('hidden');
     }
 
-    simulateProgress() {
+    updateProgress(percentage, message = '') {
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
-        let progress = 0;
-
-        // Clear any existing interval
-        if (this.progressInterval) {
-            clearInterval(this.progressInterval);
+        const loadingCaption = document.querySelector('.loading-caption');
+        
+        if (progressFill && progressText) {
+            const clampedProgress = Math.min(100, Math.max(0, percentage));
+            progressFill.style.width = clampedProgress + '%';
+            progressText.textContent = Math.round(clampedProgress) + '%';
         }
+        
+        if (loadingCaption && message) {
+            loadingCaption.textContent = message.toUpperCase();
+        }
+        
+        console.log(`Progress: ${Math.round(percentage)}% - ${message}`);
+    }
 
-        this.progressInterval = setInterval(() => {
-            progress += Math.random() * 15;
-            if (progress > 85) progress = 85; // Stop at 85% instead of 95%
-            
-            progressFill.style.width = progress + '%';
-            progressText.textContent = Math.round(progress) + '%';
-            
-            if (progress >= 85) {
-                clearInterval(this.progressInterval);
-                this.progressInterval = null;
-            }
-        }, 150); // Faster updates
+    simulateProgress() {
+        // This method is now deprecated - real progress tracking is used instead
+        this.updateProgress(0, 'Starting PDF processing...');
     }
 
     completeProgress() {
-        const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
-        
-        // Clear any existing interval
-        if (this.progressInterval) {
-            clearInterval(this.progressInterval);
-            this.progressInterval = null;
-        }
-        
-        // Smoothly complete to 100%
-        let currentProgress = parseInt(progressText.textContent) || 85;
-        const completeInterval = setInterval(() => {
-            currentProgress += 3;
-            if (currentProgress >= 100) {
-                currentProgress = 100;
-                clearInterval(completeInterval);
-            }
-            
-            progressFill.style.width = currentProgress + '%';
-            progressText.textContent = currentProgress + '%';
-        }, 50);
+        // Complete the progress and show final message
+        this.updateProgress(100, 'PDF loaded successfully!');
     }
 
-    async createExportCanvas() {
+    async createExportCanvas(scale = 4) {
         try {
+            console.log('=== CREATE EXPORT CANVAS CALLED ===');
+            console.log('Creating export canvas with interactive cover at scale:', scale);
+            
             // Get the current preview canvas as reference
             const previewCanvas = document.getElementById('previewCanvas');
             if (!previewCanvas || previewCanvas.width === 0 || previewCanvas.height === 0) {
@@ -1457,26 +2214,135 @@ class PDFComposerApp {
                 
                 // Create a new canvas for export
                 const exportCanvas = document.createElement('canvas');
-                const canvasWidth = 800;  // Standard export width
-                const canvasHeight = 1000; // Standard export height
+                const canvasWidth = 800 * scale;  // Standard export width scaled
+                const canvasHeight = 1000 * scale; // Standard export height scaled
                 
                 exportCanvas.width = canvasWidth;
                 exportCanvas.height = canvasHeight;
                 
                 const context = exportCanvas.getContext('2d');
+                context.scale(scale, scale);
                 
                 // Re-render the composition directly to export canvas
-                await this.renderCompositionToCanvas(context, canvasWidth, canvasHeight);
+                await this.renderCompositionToCanvas(context, 800, 1000);
                 
                 return exportCanvas;
             } else {
-                // Clone the existing preview canvas
+                // Create high-resolution export canvas combining main canvas + interactive cover
                 const exportCanvas = document.createElement('canvas');
-                exportCanvas.width = previewCanvas.width;
-                exportCanvas.height = previewCanvas.height;
+                exportCanvas.width = previewCanvas.width * scale;
+                exportCanvas.height = previewCanvas.height * scale;
                 
                 const exportContext = exportCanvas.getContext('2d');
-                exportContext.drawImage(previewCanvas, 0, 0);
+                
+                // Re-render citation page at high resolution instead of upscaling preview
+                console.log('Re-rendering citation page at high resolution for export');
+                
+                // Get first citation page
+                const citationPageIndex = Array.from(this.selectedCitations)[0];
+                const citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
+                
+                // Calculate high-resolution viewport for export
+                const baseViewport = citationPage.getViewport({ scale: 1 });
+                const exportScale = (previewCanvas.width * scale) / baseViewport.width;
+                const highResViewport = citationPage.getViewport({ scale: exportScale });
+                
+                console.log('Export scale calculation:', {
+                    previewWidth: previewCanvas.width,
+                    scale: scale,
+                    baseViewportWidth: baseViewport.width,
+                    exportScale: exportScale,
+                    highResWidth: highResViewport.width
+                });
+                
+                // Render citation page directly to export canvas at high resolution
+                await citationPage.render({
+                    canvasContext: exportContext,
+                    viewport: highResViewport
+                }).promise;
+                
+                // Draw the interactive cover on top if it exists and is visible
+                const coverContainer = document.getElementById('coverImageContainer');
+                const coverCanvas = document.getElementById('coverCanvas');
+                
+                if (coverContainer && coverCanvas && !coverContainer.classList.contains('hidden')) {
+                    console.log('Re-rendering cover at high resolution for export');
+                    console.log('Cover position:', this.coverTransform.x, this.coverTransform.y, 'scale:', this.coverTransform.scale);
+                    
+                    // Convert from container coordinates to citation page relative coordinates for export
+                    const previewCanvasContainer = document.querySelector('.preview-canvas-container');
+                    const canvasRect = previewCanvas.getBoundingClientRect();
+                    const containerRect = previewCanvasContainer.getBoundingClientRect();
+                    
+                    // Calculate citation page bounds in container coordinates (same as constraint logic)
+                    const citationLeft = canvasRect.left - containerRect.left;
+                    const citationTop = canvasRect.top - containerRect.top;
+                    
+                    // Convert cover position from container coordinates to citation page relative coordinates
+                    const citationRelativeX = this.coverTransform.x - citationLeft;
+                    const citationRelativeY = this.coverTransform.y - citationTop;
+                    
+                    // Re-render cover page at high resolution
+                    const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
+                    const coverBaseViewport = coverPage.getViewport({ scale: 1 });
+                    
+                    // Simple approach: scale everything by the export scale factor
+                    const exportRelativeX = citationRelativeX * scale;
+                    const exportRelativeY = citationRelativeY * scale;
+                    
+                    // Calculate cover scale for export - scale up by the same factor as the canvas
+                    const previewCoverScale = this.coverTransform.scale;
+                    const exportCoverScale = previewCoverScale * exportScale;
+                    const highResCoverViewport = coverPage.getViewport({ scale: exportCoverScale });
+                    
+                    // Calculate final export dimensions from preview size
+                    const previewCoverWidth = parseFloat(coverContainer.style.width) || coverContainer.offsetWidth;
+                    const previewCoverHeight = parseFloat(coverContainer.style.height) || coverContainer.offsetHeight;
+                    const exportCoverWidth = previewCoverWidth * scale;
+                    const exportCoverHeight = previewCoverHeight * scale;
+                    
+                    console.log('High-res cover rendering:', {
+                        previewCoverScale,
+                        exportCoverScale,
+                        previewSize: { width: previewCoverWidth, height: previewCoverHeight },
+                        exportDimensions: { width: exportCoverWidth, height: exportCoverHeight },
+                        citationBounds: { left: citationLeft, top: citationTop },
+                        relativePosition: { x: citationRelativeX, y: citationRelativeY },
+                        exportPosition: { x: exportRelativeX, y: exportRelativeY }
+                    });
+                    
+                    // Create temporary high-resolution canvas for cover
+                    const tempCoverCanvas = document.createElement('canvas');
+                    tempCoverCanvas.width = highResCoverViewport.width;
+                    tempCoverCanvas.height = highResCoverViewport.height;
+                    const tempCoverContext = tempCoverCanvas.getContext('2d');
+                    
+                    // Render cover page to temporary canvas at high resolution
+                    await coverPage.render({
+                        canvasContext: tempCoverContext,
+                        viewport: highResCoverViewport
+                    }).promise;
+                    
+                    // Add shadow effect and draw the high-res cover
+                    exportContext.save();
+                    exportContext.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                    exportContext.shadowBlur = 8 * scale;
+                    exportContext.shadowOffsetX = 4 * scale;
+                    exportContext.shadowOffsetY = 4 * scale;
+                    
+                    exportContext.drawImage(
+                        tempCoverCanvas,
+                        exportRelativeX,
+                        exportRelativeY,
+                        exportCoverWidth,
+                        exportCoverHeight
+                    );
+                    
+                    exportContext.restore();
+                    console.log('Cover successfully added to export with coordinate conversion');
+                } else {
+                    console.log('No interactive cover to add to export - coverContainer:', !!coverContainer, 'coverCanvas:', !!coverCanvas, 'hidden:', coverContainer?.classList.contains('hidden'));
+                }
                 
                 return exportCanvas;
             }
@@ -1512,24 +2378,113 @@ class PDFComposerApp {
 
         // Render cover if selected
         if (this.selectedCover !== null) {
+            console.log('=== EXPORT DEBUG: Cover rendering start ===');
+            console.log('Cover transform:', this.coverTransform);
+            console.log('Export canvas dimensions:', canvasWidth, 'x', canvasHeight);
+            
             const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
             const coverViewport = coverPage.getViewport({ scale: 1 });
             
-            // Apply transform settings
-            const coverWidth = coverViewport.width * this.coverTransform.scale;
-            const coverHeight = coverViewport.height * this.coverTransform.scale;
-            const coverX = this.coverTransform.x;
-            const coverY = this.coverTransform.y;
+            // Get the actual preview canvas and container for accurate measurements
+            const previewCanvas = document.getElementById('previewCanvas');
+            const previewContainer = previewCanvas?.parentElement;
             
-            const scaledCoverViewport = coverPage.getViewport({ 
-                scale: this.coverTransform.scale 
-            });
-            
-            await coverPage.render({
-                canvasContext: context,
-                viewport: scaledCoverViewport,
-                transform: [1, 0, 0, 1, coverX, coverY]
-            }).promise;
+            if (previewCanvas && previewContainer) {
+                console.log('Using actual preview dimensions for export conversion');
+                console.log('Preview canvas size:', previewCanvas.width, 'x', previewCanvas.height);
+                console.log('Preview container size:', previewContainer.clientWidth, 'x', previewContainer.clientHeight);
+                
+                // Calculate export scaling factors
+                const exportScaleX = canvasWidth / previewCanvas.width;
+                const exportScaleY = canvasHeight / previewCanvas.height;
+                console.log('Export scale factors:', exportScaleX, exportScaleY);
+                
+                // Convert cover position and size to export canvas
+                const exportX = this.coverTransform.x * exportScaleX;
+                const exportY = this.coverTransform.y * exportScaleY;
+                const exportWidth = this.coverTransform.width * exportScaleX;
+                const exportHeight = this.coverTransform.height * exportScaleY;
+                
+                console.log('Preview cover position:', this.coverTransform.x, this.coverTransform.y);
+                console.log('Preview cover size:', this.coverTransform.width, this.coverTransform.height);
+                console.log('Export cover position:', exportX, exportY);
+                console.log('Export cover size:', exportWidth, exportHeight);
+                
+                // Create high-resolution cover canvas
+                const tempCoverCanvas = document.createElement('canvas');
+                tempCoverCanvas.width = exportWidth;
+                tempCoverCanvas.height = exportHeight;
+                const tempContext = tempCoverCanvas.getContext('2d');
+                
+                // Calculate scale for high-resolution rendering
+                const highResScale = Math.max(exportWidth / coverViewport.width, exportHeight / coverViewport.height);
+                const scaledCoverViewport = coverPage.getViewport({ scale: highResScale });
+                
+                console.log('High-res scale for cover:', highResScale);
+                console.log('Scaled cover viewport:', scaledCoverViewport.width, 'x', scaledCoverViewport.height);
+                
+                // Render cover at high resolution
+                tempCoverCanvas.width = scaledCoverViewport.width;
+                tempCoverCanvas.height = scaledCoverViewport.height;
+                await coverPage.render({
+                    canvasContext: tempContext,
+                    viewport: scaledCoverViewport
+                }).promise;
+                
+                // Draw to export canvas with exact dimensions
+                context.save();
+                context.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                context.shadowBlur = 8 * (exportScaleX + exportScaleY) / 2; // Scale shadow with export
+                context.shadowOffsetX = 4 * exportScaleX;
+                context.shadowOffsetY = 4 * exportScaleY;
+                
+                context.drawImage(
+                    tempCoverCanvas,
+                    exportX,
+                    exportY,
+                    exportWidth,
+                    exportHeight
+                );
+                
+                context.restore();
+                console.log('=== EXPORT DEBUG: Cover rendered successfully ===');
+                
+            } else {
+                console.warn('Preview canvas not available, using fallback method');
+                // Fallback method (existing code)
+                const assumedContainerWidth = 800;
+                const assumedContainerHeight = 600;
+                
+                const relativeX = this.coverTransform.x / assumedContainerWidth;
+                const relativeY = this.coverTransform.y / assumedContainerHeight;
+                
+                const canvasX = relativeX * canvasWidth;
+                const canvasY = relativeY * canvasHeight;
+                
+                const scaledCoverViewport = coverPage.getViewport({ 
+                    scale: this.coverTransform.scale 
+                });
+                
+                const tempCoverCanvas = document.createElement('canvas');
+                tempCoverCanvas.width = scaledCoverViewport.width;
+                tempCoverCanvas.height = scaledCoverViewport.height;
+                const tempContext = tempCoverCanvas.getContext('2d');
+                
+                await coverPage.render({
+                    canvasContext: tempContext,
+                    viewport: scaledCoverViewport
+                }).promise;
+                
+                context.save();
+                context.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                context.shadowBlur = 8;
+                context.shadowOffsetX = 4;
+                context.shadowOffsetY = 4;
+                
+                context.drawImage(tempCoverCanvas, canvasX, canvasY);
+                context.restore();
+                console.log('Cover rendered using fallback method at:', canvasX, canvasY);
+            }
         }
     }
 
@@ -1614,66 +2569,19 @@ class PDFComposerApp {
             const citationScale = canvasWidth / citationViewport.width;
             const scaledCitationViewport = citationPage.getViewport({ scale: citationScale });
             
-            // Render citation page
+            // Render citation page (background)
             console.log('Rendering citation page', citationPageIndex + 1);
             await citationPage.render({
                 canvasContext: context,
                 viewport: scaledCitationViewport
             }).promise;
             
-            // Get cover page
-            const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
-            const coverViewport = coverPage.getViewport({ scale: 1 });
+            console.log('Citation page rendered, setting up interactive cover');
             
-            // Calculate cover size (25% of citation width)
-            const coverTargetWidth = canvasWidth * 0.25;
-            const coverScale = coverTargetWidth / coverViewport.width;
-            const scaledCoverViewport = coverPage.getViewport({ scale: coverScale });
+            // Set up interactive cover overlay
+            await this.setupInteractiveCover();
             
-            console.log('Cover dimensions: target width =', coverTargetWidth, 'actual =', scaledCoverViewport.width);
-            
-            // Create temp canvas for cover
-            const coverCanvas = document.createElement('canvas');
-            const coverContext = coverCanvas.getContext('2d');
-            coverCanvas.width = scaledCoverViewport.width;
-            coverCanvas.height = scaledCoverViewport.height;
-            
-            // Render cover page
-            console.log('Rendering cover page', this.selectedCover + 1);
-            await coverPage.render({
-                canvasContext: coverContext,
-                viewport: scaledCoverViewport
-            }).promise;
-            
-            // Position cover (top-right with margin)
-            let coverX = canvasWidth - scaledCoverViewport.width - 20;
-            let coverY = 20;
-            
-            // Ensure cover is within bounds
-            if (coverX < 0) coverX = 10; // If cover is too wide, position at left margin
-            if (coverY < 0) coverY = 10; // If cover is too tall, position at top margin
-            if (coverX + scaledCoverViewport.width > canvasWidth) {
-                coverX = canvasWidth - scaledCoverViewport.width - 10;
-            }
-            if (coverY + scaledCoverViewport.height > canvasHeight) {
-                coverY = canvasHeight - scaledCoverViewport.height - 10;
-            }
-            
-            
-            // Draw cover with shadow
-            context.save();
-            context.shadowColor = 'rgba(0, 0, 0, 0.3)';
-            context.shadowBlur = 8;
-            context.shadowOffsetX = 4;
-            context.shadowOffsetY = 4;
-            
-            context.drawImage(coverCanvas, coverX, coverY);
-            context.restore();
-            
-            
-            // Debug elements removed for clean export
-            
-            console.log('Composition preview complete');
+            console.log('Composition preview complete with interactive cover');
             
             // Enable export
             const exportBtn = document.getElementById('exportPreviewBtn');
@@ -1756,6 +2664,12 @@ class PDFComposerApp {
 
         const canvas = document.getElementById('previewCanvas');
         if (!canvas) return;
+        
+        // Hide interactive cover when showing single page
+        const coverContainer = document.getElementById('coverImageContainer');
+        if (coverContainer) {
+            coverContainer.classList.add('hidden');
+        }
         
         // Note: Render task cancellation disabled to prevent conflicts
         
@@ -2006,13 +2920,16 @@ class PDFComposerApp {
     }
 
     handleCoverMouseDown(event) {
+        console.log('=== COVER MOUSE DOWN ===');
         event.preventDefault();
         event.stopPropagation();
         
         if (event.target.classList.contains('resize-handle')) {
+            console.log('Resize handle clicked - ignoring drag');
             return; // Handle resize separately
         }
 
+        console.log('Setting isDragging = true');
         this.coverTransform.isDragging = true;
         this.coverTransform.startX = event.clientX - this.coverTransform.x;
         this.coverTransform.startY = event.clientY - this.coverTransform.y;
@@ -2043,6 +2960,8 @@ class PDFComposerApp {
         
         const newX = event.clientX - this.coverTransform.startX;
         const newY = event.clientY - this.coverTransform.startY;
+        
+        console.log('handleCoverMouseMove:', { newX, newY });
         
         // Apply boundary checking
         const constrainedPos = this.constrainCoverPosition(newX, newY);
@@ -2249,32 +3168,69 @@ class PDFComposerApp {
 
     constrainCoverPosition(x, y) {
         const coverContainer = document.getElementById('coverImageContainer');
+        const previewCanvas = document.getElementById('previewCanvas');
         const previewCanvasContainer = document.querySelector('.preview-canvas-container');
         
-        if (!coverContainer || !previewCanvasContainer) {
+        if (!coverContainer || !previewCanvas || !previewCanvasContainer) {
+            console.log('constrainCoverPosition: Missing elements', { 
+                coverContainer: !!coverContainer, 
+                previewCanvas: !!previewCanvas,
+                previewCanvasContainer: !!previewCanvasContainer 
+            });
             return { x, y };
         }
         
-        // Get container dimensions (accounting for padding/borders)
-        const containerStyle = window.getComputedStyle(previewCanvasContainer);
-        const containerWidth = previewCanvasContainer.clientWidth;
-        const containerHeight = previewCanvasContainer.clientHeight;
+        // Get the actual displayed canvas bounds (where the citation page is rendered)
+        const canvasRect = previewCanvas.getBoundingClientRect();
+        const containerRect = previewCanvasContainer.getBoundingClientRect();
         
         // Get cover dimensions
         const coverWidth = parseFloat(coverContainer.style.width) || coverContainer.offsetWidth;
         const coverHeight = parseFloat(coverContainer.style.height) || coverContainer.offsetHeight;
         
-        // Calculate boundaries with some padding
-        const padding = 5;
-        const minX = padding;
-        const minY = padding;
-        const maxX = Math.max(padding, containerWidth - coverWidth - padding);
-        const maxY = Math.max(padding, containerHeight - coverHeight - padding);
+        console.log('constrainCoverPosition:', {
+            input: { x, y },
+            canvasDisplayRect: { 
+                left: canvasRect.left, 
+                top: canvasRect.top, 
+                width: canvasRect.width, 
+                height: canvasRect.height 
+            },
+            containerRect: { 
+                left: containerRect.left, 
+                top: containerRect.top, 
+                width: containerRect.width, 
+                height: containerRect.height 
+            },
+            cover: { width: coverWidth, height: coverHeight }
+        });
         
-        return {
+        // Calculate boundaries using the actual citation page boundaries (canvas display area)
+        // Convert canvas screen coordinates to container-relative coordinates
+        const citationLeft = canvasRect.left - containerRect.left;
+        const citationTop = canvasRect.top - containerRect.top;
+        const citationRight = citationLeft + canvasRect.width;
+        const citationBottom = citationTop + canvasRect.height;
+        
+        // Add small padding within the citation area
+        const padding = 8;
+        const minX = citationLeft + padding;
+        const minY = citationTop + padding;
+        const maxX = Math.max(minX, citationRight - coverWidth - padding);
+        const maxY = Math.max(minY, citationBottom - coverHeight - padding);
+        
+        const constrained = {
             x: Math.max(minX, Math.min(maxX, x)),
             y: Math.max(minY, Math.min(maxY, y))
         };
+        
+        console.log('constrainCoverPosition result:', {
+            citationBounds: { left: citationLeft, top: citationTop, right: citationRight, bottom: citationBottom },
+            boundaries: { minX, minY, maxX, maxY },
+            constrained
+        });
+        
+        return constrained;
     }
 
     updateCoverPosition() {
@@ -2297,10 +3253,55 @@ class PDFComposerApp {
     }
 
     resetCoverTransform() {
-        // Reset to default position and scale
-        this.coverTransform.x = 10;
-        this.coverTransform.y = 10;
-        this.coverTransform.scale = 0.25;
+        // Reset to default position and scale, positioning it inside the citation page area only
+        const previewCanvas = document.getElementById('previewCanvas');
+        const coverCanvas = document.getElementById('coverCanvas');
+        const previewCanvasContainer = document.querySelector('.preview-canvas-container');
+        
+        console.log('=== RESET COVER TRANSFORM DEBUG ===');
+        console.log('previewCanvas exists:', !!previewCanvas);
+        console.log('previewCanvas width:', previewCanvas?.width);
+        console.log('coverCanvas exists:', !!coverCanvas);
+        console.log('coverCanvas dimensions:', coverCanvas?.width, 'x', coverCanvas?.height);
+        
+        if (previewCanvas && previewCanvas.width > 0 && coverCanvas && previewCanvasContainer) {
+            this.coverTransform.scale = 0.25;
+            
+            // Calculate actual scaled cover dimensions
+            const scaledCoverWidth = coverCanvas.width * this.coverTransform.scale;
+            const scaledCoverHeight = coverCanvas.height * this.coverTransform.scale;
+            
+            // Get the actual citation page boundaries (canvas display area)
+            const canvasRect = previewCanvas.getBoundingClientRect();
+            const containerRect = previewCanvasContainer.getBoundingClientRect();
+            
+            // Calculate citation page bounds in container coordinates
+            const citationLeft = canvasRect.left - containerRect.left;
+            const citationTop = canvasRect.top - containerRect.top;
+            const citationWidth = canvasRect.width;
+            const citationHeight = canvasRect.height;
+            
+            // Position cover in the top-right area of the citation page with proper padding
+            const padding = 20;
+            const defaultX = citationLeft + citationWidth - scaledCoverWidth - padding;
+            const defaultY = citationTop + padding;
+            
+            // Ensure position is within citation bounds
+            this.coverTransform.x = Math.max(citationLeft + padding, Math.min(defaultX, citationLeft + citationWidth - scaledCoverWidth - padding));
+            this.coverTransform.y = Math.max(citationTop + padding, Math.min(defaultY, citationTop + citationHeight - scaledCoverHeight - padding));
+            
+            console.log('Citation bounds positioning:', {
+                citationBounds: { left: citationLeft, top: citationTop, width: citationWidth, height: citationHeight },
+                coverDimensions: { width: scaledCoverWidth, height: scaledCoverHeight },
+                finalPosition: { x: this.coverTransform.x, y: this.coverTransform.y }
+            });
+        } else {
+            // Fallback if canvas not ready
+            this.coverTransform.x = 20;
+            this.coverTransform.y = 20;
+            this.coverTransform.scale = 0.25;
+            console.log('Using fallback cover position due to missing canvas elements');
+        }
         
         // Update the cover visual state
         this.updateCoverScale(this.coverTransform.scale);
@@ -2310,7 +3311,7 @@ class PDFComposerApp {
         // Show reset feedback
         this.showToast('Cover position and size reset', 'success');
         
-        console.log('Cover transform reset');
+        console.log('Cover transform reset to position:', this.coverTransform.x, this.coverTransform.y);
     }
 
     closeSelectionPanel() {
@@ -2411,6 +3412,74 @@ class PDFComposerApp {
             }
         } else {
             console.warn('No current PDF loaded, cannot refresh preview');
+        }
+    }
+    
+    // Cleanup methods for proper resource management
+    cleanup() {
+        console.log('Cleaning up PDF Composer resources...');
+        
+        // Cancel any ongoing thumbnail generation
+        this.cancelThumbnailGeneration();
+        
+        // Clean up worker
+        this.destroyWorker();
+        
+        // Clean up background processing
+        this.deactivateBackgroundPreservation();
+        
+        // Clean up intervals
+        this.cleanupIntervals();
+        
+        // Release wake lock
+        this.releaseWakeLock();
+        
+        console.log('Cleanup completed');
+    }
+    
+    cancelThumbnailGeneration() {
+        if (this.currentTaskId && this.thumbnailWorker) {
+            console.log('Cancelling thumbnail generation task:', this.currentTaskId);
+            this.thumbnailWorker.postMessage({
+                type: 'CANCEL_TASK',
+                taskId: this.currentTaskId
+            });
+        }
+        
+        // Reset state
+        this.isProcessing = false;
+        this.processingStartTime = null;
+        this.currentTaskId = null;
+    }
+    
+    destroyWorker() {
+        if (this.thumbnailWorker) {
+            console.log('Terminating thumbnail worker');
+            this.thumbnailWorker.terminate();
+            this.thumbnailWorker = null;
+        }
+    }
+    
+    cleanupIntervals() {
+        // Clear all intervals
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+            this.progressInterval = null;
+        }
+        
+        if (this.keepAliveInterval) {
+            clearInterval(this.keepAliveInterval);
+            this.keepAliveInterval = null;
+        }
+        
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+        
+        if (this.throttlingDetectionInterval) {
+            clearInterval(this.throttlingDetectionInterval);
+            this.throttlingDetectionInterval = null;
         }
     }
 }
