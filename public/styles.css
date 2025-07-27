@@ -963,6 +963,10 @@ body {
     padding: 8px 12px;
 }
 
+.overlay-mode-section {
+    margin-bottom: 8px;
+}
+
 .export-section {
     margin-bottom: 8px;
 }
