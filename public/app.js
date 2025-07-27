@@ -2545,7 +2545,7 @@ class PDFComposerApp {
             const containerHeight = container.clientHeight - 40;
             const aspectRatio = citationViewport.width / citationViewport.height;
             
-            let canvasWidth = Math.min(containerWidth, 500);
+            let canvasWidth = Math.min(containerWidth, 800);
             let canvasHeight = canvasWidth / aspectRatio;
             
             if (canvasHeight > containerHeight) {
@@ -2686,7 +2686,7 @@ class PDFComposerApp {
             const containerHeight = container.clientHeight - 40;
             const aspectRatio = viewport.width / viewport.height;
             
-            let canvasWidth = Math.min(containerWidth, 500);
+            let canvasWidth = Math.min(containerWidth, 800);
             let canvasHeight = canvasWidth / aspectRatio;
             
             if (canvasHeight > containerHeight) {

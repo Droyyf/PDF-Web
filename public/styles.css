@@ -674,8 +674,9 @@ body {
     flex-direction: column;
     margin: 20px;
     border-radius: 4px;
-    min-height: 400px;
-    max-height: calc(100vh - 200px);
+    min-height: 500px;
+    max-height: calc(100vh - 150px);
+    min-width: 700px;
 }
 
 .preview-header {
@@ -729,8 +730,9 @@ body {
     width: fit-content;
     height: fit-content;
     max-width: calc(100% - 24px);
-    max-height: calc(100vh - 300px);
+    max-height: calc(100vh - 250px);
     padding: 10px;
+    flex: 1;
 }
 
 .preview-canvas-container.dragging-active {
@@ -921,7 +923,7 @@ body {
 
 /* Transform Info */
 .transform-info {
-    padding: 12px;
+    padding: 8px 12px;
     border-bottom: 1px solid #333;
 }
 
@@ -955,11 +957,11 @@ body {
 }
 
 .preview-controls {
-    padding: 12px;
+    padding: 8px 12px;
 }
 
 .export-section {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .export-label {
