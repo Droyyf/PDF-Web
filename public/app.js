@@ -2540,16 +2540,16 @@ class PDFComposerApp {
             const citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
             const citationViewport = citationPage.getViewport({ scale: 1 });
             
-            // Calculate main canvas size
-            const containerWidth = container.clientWidth - 40;
-            const containerHeight = container.clientHeight - 40;
+            // Calculate main canvas size - use optimal dimensions for readability
             const aspectRatio = citationViewport.width / citationViewport.height;
+            const maxWidth = Math.min(1000, window.innerWidth - 300); // Leave space for sidebar
+            const maxHeight = Math.min(800, window.innerHeight - 200); // Leave space for controls
             
-            let canvasWidth = Math.min(containerWidth, 800);
+            let canvasWidth = maxWidth;
             let canvasHeight = canvasWidth / aspectRatio;
             
-            if (canvasHeight > containerHeight) {
-                canvasHeight = containerHeight;
+            if (canvasHeight > maxHeight) {
+                canvasHeight = maxHeight;
                 canvasWidth = canvasHeight * aspectRatio;
             }
             
@@ -2681,16 +2681,16 @@ class PDFComposerApp {
             const page = await this.currentPDF.getPage(pageIndex + 1);
             const viewport = page.getViewport({ scale: 1 });
             
-            // Calculate canvas size
-            const containerWidth = container.clientWidth - 40;
-            const containerHeight = container.clientHeight - 40;
+            // Calculate canvas size - use optimal dimensions for readability
             const aspectRatio = viewport.width / viewport.height;
+            const maxWidth = Math.min(1000, window.innerWidth - 300); // Leave space for sidebar
+            const maxHeight = Math.min(800, window.innerHeight - 200); // Leave space for controls
             
-            let canvasWidth = Math.min(containerWidth, 800);
+            let canvasWidth = maxWidth;
             let canvasHeight = canvasWidth / aspectRatio;
             
-            if (canvasHeight > containerHeight) {
-                canvasHeight = containerHeight;
+            if (canvasHeight > maxHeight) {
+                canvasHeight = maxHeight;
                 canvasWidth = canvasHeight * aspectRatio;
             }
             
