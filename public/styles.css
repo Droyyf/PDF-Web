@@ -1363,8 +1363,71 @@ body {
 .batch-preview-list {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-md);
-    padding: var(--space-md);
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+}
+
+.batch-preview-item {
+    background: var(--bg-panel);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    overflow: hidden;
+    transition: all var(--transition-smooth);
+    box-shadow: var(--shadow-sm);
+}
+
+.batch-preview-item:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.batch-preview-item.cover-item {
+    border-color: var(--accent-blue);
+    background: rgba(74, 158, 255, 0.05);
+}
+
+.batch-preview-item.citation-item {
+    border-color: var(--accent-primary);
+    background: rgba(255, 107, 157, 0.05);
+}
+
+.batch-preview-header {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.preview-type {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.cover-item .preview-type {
+    color: var(--accent-blue);
+}
+
+.citation-item .preview-type {
+    color: var(--accent-primary);
+}
+
+.preview-page {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+.batch-preview-canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: #fff;
 }
 
 .controls-panel {

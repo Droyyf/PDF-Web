@@ -272,7 +272,7 @@ class PDFComposerApp {
             composeBtnEl.addEventListener('click', this.composePDF.bind(this));
         }
 
-        // Preview panel controls
+        // Enhanced Preview panel controls
         const togglePreviewBtn = document.getElementById('togglePreview');
         const exportPreviewBtn = document.getElementById('exportPreviewBtn');
         const resetCoverBtn = document.getElementById('resetCoverBtn');
@@ -286,15 +286,28 @@ class PDFComposerApp {
         } else {
             console.error('Export button not found during setup');
         }
+        if (resetCoverBtn) {
+            resetCoverBtn.addEventListener('click', this.resetCoverTransform.bind(this));
+        }
         
-        // Overlay mode selector
+        // Enhanced mode switcher buttons
+        const modeSwitcher = document.getElementById('modeSwitcher');
+        if (modeSwitcher) {
+            modeSwitcher.addEventListener('click', (e) => {
+                if (e.target.classList.contains('mode-btn') || e.target.closest('.mode-btn')) {
+                    const modeBtn = e.target.classList.contains('mode-btn') ? e.target : e.target.closest('.mode-btn');
+                    const mode = modeBtn.dataset.mode;
+                    this.handleModeSwitch(mode);
+                }
+            });
+            console.log('Mode switcher event listener added successfully');
+        }
+        
+        // Legacy overlay mode selector (fallback)
         const overlayModeSelect = document.getElementById('overlayModeSelect');
         if (overlayModeSelect) {
             overlayModeSelect.addEventListener('change', this.handleOverlayModeChange.bind(this));
-            console.log('Overlay mode selector event listener added successfully');
-        }
-        if (resetCoverBtn) {
-            resetCoverBtn.addEventListener('click', this.resetCoverTransform.bind(this));
+            console.log('Legacy overlay mode selector event listener added successfully');
         }
         
         // Cover placement change handler
@@ -1138,6 +1151,8 @@ class PDFComposerApp {
         console.log('Cover selected:', this.selectedCover);
         
         this.updateThumbnailElement(pageIndex);
+        this.updateSelectionSummary();
+        this.updatePreviewStatus();
         this.updatePreviewVisibility();
         
         console.log('=== CITATION SELECTION COMPLETE ===');
@@ -1168,6 +1183,8 @@ class PDFComposerApp {
         if (this.selectedCover !== null) {
             this.updateThumbnailElement(this.selectedCover); // Update new cover
         }
+        this.updateSelectionSummary();
+        this.updatePreviewStatus();
         this.updatePreviewVisibility();
         
         console.log('=== COVER SELECTION COMPLETE ===');
@@ -1300,9 +1317,44 @@ class PDFComposerApp {
         const previewPanel = document.getElementById('previewPanel');
         previewPanel.classList.remove('hidden');
         
+        // Update preview status
+        this.updatePreviewStatus();
+        
         if (this.selectedCitations.size > 0) {
             this.generateCompositionPreview();
+        } else {
+            this.showPreviewEmptyState();
         }
+    }
+    
+    updatePreviewStatus() {
+        const statusText = document.getElementById('previewStatus')?.querySelector('.status-text');
+        if (!statusText) return;
+        
+        if (this.selectedCitations.size === 0) {
+            statusText.textContent = 'Select citations to preview';
+        } else if (this.selectedCitations.size === 1) {
+            statusText.textContent = '1 citation selected';
+        } else {
+            statusText.textContent = `${this.selectedCitations.size} citations selected`;
+        }
+    }
+    
+    showPreviewEmptyState() {
+        const previewEmptyState = document.getElementById('previewEmptyState');
+        const previewViewport = document.getElementById('previewViewport');
+        const batchPreviewContainer = document.getElementById('batchPreviewContainer');
+        const controlsPanel = document.getElementById('controlsPanel');
+        
+        if (previewEmptyState) previewEmptyState.style.display = 'flex';
+        if (previewViewport) previewViewport.style.display = 'none';
+        if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
+        if (controlsPanel) controlsPanel.style.display = 'none';
+    }
+    
+    hidePreviewEmptyState() {
+        const previewEmptyState = document.getElementById('previewEmptyState');
+        if (previewEmptyState) previewEmptyState.style.display = 'none';
     }
 
     hidePreview() {
@@ -1311,7 +1363,26 @@ class PDFComposerApp {
     }
 
     async generateCompositionPreview() {
-        if (!this.currentPDF || this.selectedCitations.size === 0) return;
+        if (!this.currentPDF || this.selectedCitations.size === 0) {
+            this.showPreviewEmptyState();
+            return;
+        }
+
+        // Hide empty state and show preview content
+        this.hidePreviewEmptyState();
+        this.updatePreviewStatus();
+        
+        // Show appropriate preview mode
+        if (this.overlayMode === 'sidebyside') {
+            this.generateBatchPreview();
+            return;
+        }
+        
+        // Show single preview viewport and controls
+        const previewViewport = document.getElementById('previewViewport');
+        const controlsPanel = document.getElementById('controlsPanel');
+        if (previewViewport) previewViewport.style.display = 'flex';
+        if (controlsPanel && this.selectedCover !== null) controlsPanel.style.display = 'block';
 
         const previewCanvas = document.getElementById('previewCanvas');
         const placeholder = previewCanvas.parentElement.querySelector('.preview-placeholder');
@@ -1428,6 +1499,92 @@ class PDFComposerApp {
             context.textAlign = 'center';
             context.fillText(`Page ${pageIndex + 1}`, x + width/2, y + height/2);
         }
+    }
+
+    async generateBatchPreview() {
+        if (!this.currentPDF || this.selectedCitations.size === 0) {
+            this.showPreviewEmptyState();
+            return;
+        }
+
+        const batchPreviewContainer = document.getElementById('batchPreviewContainer');
+        const batchPreviewList = document.getElementById('batchPreviewList');
+        const previewViewport = document.getElementById('previewViewport');
+        const controlsPanel = document.getElementById('controlsPanel');
+
+        // Show batch preview container and hide single preview
+        if (batchPreviewContainer) batchPreviewContainer.style.display = 'block';
+        if (previewViewport) previewViewport.style.display = 'none';
+        if (controlsPanel) controlsPanel.style.display = 'none';
+
+        if (!batchPreviewList) return;
+
+        // Clear existing previews
+        batchPreviewList.innerHTML = '';
+
+        // Get selected citation pages
+        const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
+
+        try {
+            // Create preview items for each citation
+            for (const pageIndex of citationPages) {
+                const previewItem = await this.createBatchPreviewItem(pageIndex);
+                batchPreviewList.appendChild(previewItem);
+            }
+
+            // Add cover preview if selected
+            if (this.selectedCover !== null) {
+                const coverPreviewItem = await this.createBatchPreviewItem(this.selectedCover, true);
+                batchPreviewList.appendChild(coverPreviewItem);
+            }
+
+        } catch (error) {
+            console.error('Error generating batch preview:', error);
+            this.showToast('Failed to generate preview', 'error');
+        }
+    }
+
+    async createBatchPreviewItem(pageIndex, isCover = false) {
+        const item = document.createElement('div');
+        item.className = `batch-preview-item ${isCover ? 'cover-item' : 'citation-item'}`;
+        
+        // Create canvas for this preview
+        const canvas = document.createElement('canvas');
+        canvas.className = 'batch-preview-canvas';
+        const context = canvas.getContext('2d');
+
+        // Set canvas size (thumbnail size)
+        const previewWidth = 200;
+        const previewHeight = Math.round(previewWidth * 1.4); // A4 ratio
+        canvas.width = previewWidth;
+        canvas.height = previewHeight;
+
+        // Create header
+        const header = document.createElement('div');
+        header.className = 'batch-preview-header';
+        header.innerHTML = `
+            <span class="preview-type">${isCover ? '★ COVER' : '○ CITATION'}</span>
+            <span class="preview-page">Page ${pageIndex + 1}</span>
+        `;
+
+        // Render page to canvas
+        try {
+            await this.renderPageToCanvas(context, pageIndex, 0, 0, previewWidth, previewHeight);
+        } catch (error) {
+            console.error('Error rendering batch preview item:', error);
+            // Draw placeholder
+            context.fillStyle = '#f0f0f0';
+            context.fillRect(0, 0, previewWidth, previewHeight);
+            context.fillStyle = '#666';
+            context.font = '14px Arial';
+            context.textAlign = 'center';
+            context.fillText(`Page ${pageIndex + 1}`, previewWidth / 2, previewHeight / 2);
+        }
+
+        item.appendChild(header);
+        item.appendChild(canvas);
+
+        return item;
     }
 
     async exportComposition() {
@@ -3441,6 +3598,60 @@ class PDFComposerApp {
         console.log('Cover transform reset to position:', this.coverTransform.x, this.coverTransform.y);
     }
     
+    handleModeSwitch(mode) {
+        console.log('Mode switched to:', mode);
+        
+        // Update active state
+        const modeBtns = document.querySelectorAll('.mode-btn');
+        modeBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+        
+        // Update overlay mode
+        this.overlayMode = mode;
+        
+        // Update preview display based on mode
+        this.updatePreviewMode(mode);
+        
+        // Regenerate preview if active
+        if (this.hasActivePreview()) {
+            this.generateCompositionPreview();
+        }
+    }
+    
+    updatePreviewMode(mode) {
+        const previewViewport = document.getElementById('previewViewport');
+        const batchPreviewContainer = document.getElementById('batchPreviewContainer');
+        const controlsPanel = document.getElementById('controlsPanel');
+        
+        if (mode === 'sidebyside') {
+            // Show batch preview for side-by-side mode
+            if (previewViewport) previewViewport.style.display = 'none';
+            if (batchPreviewContainer) batchPreviewContainer.style.display = 'block';
+            if (controlsPanel) controlsPanel.style.display = 'none';
+        } else {
+            // Show single preview for overlay mode
+            if (previewViewport) previewViewport.style.display = 'flex';
+            if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
+            if (controlsPanel) controlsPanel.style.display = 'block';
+        }
+        
+        // Hide/show interactive cover controls based on mode
+        const coverContainer = document.getElementById('coverImageContainer');
+        if (coverContainer) {
+            if (mode === 'sidebyside') {
+                coverContainer.classList.add('hidden');
+            } else {
+                coverContainer.classList.remove('hidden');
+            }
+        }
+    }
+    
+    hasActivePreview() {
+        const previewPanel = document.getElementById('previewPanel');
+        return previewPanel && !previewPanel.classList.contains('hidden');
+    }
+    
     handleOverlayModeChange(event) {
         const newMode = event.target.value;
         console.log('Overlay mode changed to:', newMode);
@@ -3488,11 +3699,23 @@ class PDFComposerApp {
     }
 
     updateSelectionSummary() {
+        // Update enhanced selection summary in thumbnail panel
         const citationCountEl = document.getElementById('citationCount');
-        const coverSelectionEl = document.getElementById('coverSelection');
+        const coverCountEl = document.getElementById('coverCount');
         
         if (citationCountEl) {
             citationCountEl.textContent = this.selectedCitations.size;
+        }
+        if (coverCountEl) {
+            coverCountEl.textContent = this.selectedCover !== null ? '1' : '0';
+        }
+        
+        // Legacy support for old selection panel
+        const legacyCitationCountEl = document.getElementById('legacyCitationCount');
+        const coverSelectionEl = document.getElementById('coverSelection');
+        
+        if (legacyCitationCountEl) {
+            legacyCitationCountEl.textContent = this.selectedCitations.size;
         }
         if (coverSelectionEl) {
             coverSelectionEl.textContent = 
