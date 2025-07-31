@@ -2215,14 +2215,9 @@ class PDFComposerApp {
     async createExportCanvas(scale = 4) {
         try {
             console.log('=== CREATE EXPORT CANVAS CALLED ===');
-            console.log('Creating export canvas in mode:', this.overlayMode, 'at scale:', scale);
+            console.log('Creating export canvas with interactive cover at scale:', scale);
             
-            // Handle side-by-side mode with equal sizing
-            if (this.overlayMode === 'sidebyside') {
-                return await this.createSideBySideExportCanvas(scale);
-            }
-            
-            // Get the current preview canvas as reference for custom mode
+            // Get the current preview canvas as reference
             const previewCanvas = document.getElementById('previewCanvas');
             if (!previewCanvas || previewCanvas.width === 0 || previewCanvas.height === 0) {
                 console.log('Preview canvas not ready, creating export canvas from composition');
@@ -2625,74 +2620,8 @@ class PDFComposerApp {
         }
     }
     
-    async createSideBySideExportCanvas(scale = 4) {
-        console.log('🚀 Creating side-by-side export canvas with equal sizing at scale:', scale);
-        
-        // Get citation and cover pages
-        const citationPageIndex = Array.from(this.selectedCitations)[0];
-        const coverPageIndex = this.selectedCover;
-        
-        const citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
-        const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
-        
-        // Get original dimensions
-        const citationOriginal = citationPage.getViewport({ scale: 1 });
-        const coverOriginal = coverPage.getViewport({ scale: 1 });
-        
-        console.log(`📏 Export - Citation original: ${citationOriginal.width} x ${citationOriginal.height}`);
-        console.log(`📏 Export - Cover original: ${coverOriginal.width} x ${coverOriginal.height}`);
-        
-        // EQUAL-SIZE ALGORITHM for export (higher resolution)
-        const TARGET_HEIGHT = 1200 * scale; // High resolution target height
-        
-        // Calculate scale to make both pages the same height
-        const citationScale = TARGET_HEIGHT / citationOriginal.height;
-        const coverScale = TARGET_HEIGHT / coverOriginal.height;
-        
-        console.log(`📐 Export - Citation scale: ${citationScale}, Cover scale: ${coverScale}`);
-        
-        const citationViewport = citationPage.getViewport({ scale: citationScale });
-        const coverViewport = coverPage.getViewport({ scale: coverScale });
-        
-        console.log(`📐 Export - Citation viewport: ${citationViewport.width} x ${citationViewport.height}`);
-        console.log(`📐 Export - Cover viewport: ${coverViewport.width} x ${coverViewport.height}`);
-        
-        // Create export canvas - both pages side by side with same height
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = citationViewport.width + coverViewport.width;
-        exportCanvas.height = TARGET_HEIGHT;
-        
-        console.log(`🖼️ Export canvas size: ${exportCanvas.width} x ${exportCanvas.height}`);
-        
-        const context = exportCanvas.getContext('2d');
-        
-        // Clear canvas with white background
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-        
-        // Render citation page on the left
-        console.log('🎨 Export - Rendering citation page', citationPageIndex + 1);
-        await citationPage.render({
-            canvasContext: context,
-            viewport: citationViewport
-        }).promise;
-        
-        // Render cover page on the right
-        console.log('🎨 Export - Rendering cover page', coverPageIndex + 1);
-        context.save();
-        context.translate(citationViewport.width, 0);
-        await coverPage.render({
-            canvasContext: context,
-            viewport: coverViewport
-        }).promise;
-        context.restore();
-        
-        console.log('✅ Side-by-side export canvas created successfully');
-        return exportCanvas;
-    }
-    
     async renderSideBySidePreview() {
-        console.log('🔥 RENDER SIDE BY SIDE PREVIEW - EQUAL SIZING');
+        console.log('RENDER SIDE BY SIDE PREVIEW');
         
         const canvas = document.getElementById('previewCanvas');
         if (!canvas) return;
@@ -2711,33 +2640,26 @@ class PDFComposerApp {
             const citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
             const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
             
-            // Get original dimensions
-            const citationOriginal = citationPage.getViewport({ scale: 1 });
-            const coverOriginal = coverPage.getViewport({ scale: 1 });
+            const citationViewport = citationPage.getViewport({ scale: 1 });
+            const coverViewport = coverPage.getViewport({ scale: 1 });
             
-            console.log(`📏 Citation original: ${citationOriginal.width} x ${citationOriginal.height}`);
-            console.log(`📏 Cover original: ${coverOriginal.width} x ${coverOriginal.height}`);
+            // Calculate canvas size for side by side layout
+            // Total width = citation width + cover width, height = max of both
+            const maxPageHeight = Math.max(citationViewport.height, coverViewport.height);
+            const totalWidth = citationViewport.width + coverViewport.width;
+            const aspectRatio = totalWidth / maxPageHeight;
             
-            // EQUAL-SIZE ALGORITHM: Calculate scales so both pages have same visual size
-            const TARGET_HEIGHT = 600; // Target height for both pages
+            // Apply same dynamic sizing logic as custom mode
+            const maxWidth = Math.min(1400, window.innerWidth - 300); // Increased for side by side
+            const maxHeight = Math.min(800, window.innerHeight - 200);
             
-            // Calculate scale to make both pages the same height
-            const citationScale = TARGET_HEIGHT / citationOriginal.height;
-            const coverScale = TARGET_HEIGHT / coverOriginal.height;
+            let canvasWidth = maxWidth;
+            let canvasHeight = canvasWidth / aspectRatio;
             
-            console.log(`📐 Citation scale: ${citationScale}, Cover scale: ${coverScale}`);
-            
-            const citationViewport = citationPage.getViewport({ scale: citationScale });
-            const coverViewport = coverPage.getViewport({ scale: coverScale });
-            
-            console.log(`📐 Citation viewport: ${citationViewport.width} x ${citationViewport.height}`);
-            console.log(`📐 Cover viewport: ${coverViewport.width} x ${coverViewport.height}`);
-            
-            // Canvas size = both pages side by side with same height
-            const canvasWidth = citationViewport.width + coverViewport.width;
-            const canvasHeight = TARGET_HEIGHT;
-            
-            console.log(`🖼️ Canvas size: ${canvasWidth} x ${canvasHeight}`);
+            if (canvasHeight > maxHeight) {
+                canvasHeight = maxHeight;
+                canvasWidth = canvasHeight * aspectRatio;
+            }
             
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
@@ -2751,24 +2673,42 @@ class PDFComposerApp {
             context.fillStyle = '#ffffff';
             context.fillRect(0, 0, canvasWidth, canvasHeight);
             
+            // Calculate scaling for each page to fit the allocated space
+            const citationTargetWidth = canvasWidth * (citationViewport.width / totalWidth);
+            const coverTargetWidth = canvasWidth * (coverViewport.width / totalWidth);
+            
+            const citationScale = citationTargetWidth / citationViewport.width;
+            const coverScale = coverTargetWidth / coverViewport.width;
+            
+            // Calculate scaled dimensions
+            const scaledCitationHeight = citationViewport.height * citationScale;
+            const scaledCoverHeight = coverViewport.height * coverScale;
+            
+            // Center pages vertically if they're different heights
+            const citationY = (canvasHeight - scaledCitationHeight) / 2;
+            const coverY = (canvasHeight - scaledCoverHeight) / 2;
+            
             // Render citation page on the left
-            console.log('🎨 Rendering citation page', citationPageIndex + 1);
+            console.log('Rendering citation page', citationPageIndex + 1, 'at scale', citationScale);
+            context.save();
+            context.translate(0, citationY);
             await citationPage.render({
                 canvasContext: context,
-                viewport: citationViewport
-            }).promise;
-            
-            // Render cover page on the right
-            console.log('🎨 Rendering cover page', coverPageIndex + 1);
-            context.save();
-            context.translate(citationViewport.width, 0);
-            await coverPage.render({
-                canvasContext: context,
-                viewport: coverViewport
+                viewport: citationPage.getViewport({ scale: citationScale })
             }).promise;
             context.restore();
             
-            console.log('✅ Side by side preview complete');
+            // Render cover page on the right
+            console.log('Rendering cover page', coverPageIndex + 1, 'at scale', coverScale);
+            context.save();
+            context.translate(citationTargetWidth, coverY);
+            await coverPage.render({
+                canvasContext: context,
+                viewport: coverPage.getViewport({ scale: coverScale })
+            }).promise;
+            context.restore();
+            
+            console.log('Side by side preview complete');
             
             // Enable export button
             const exportBtn = document.getElementById('exportPreviewBtn');
