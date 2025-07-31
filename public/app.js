@@ -2358,6 +2358,12 @@ class PDFComposerApp {
         document.getElementById('emptyState').classList.add('hidden');
         document.getElementById('loadingState').classList.add('hidden');
         document.getElementById('pdfViewer').classList.remove('hidden');
+        
+        // Ensure preview panel is visible
+        const previewPanel = document.getElementById('previewPanel');
+        if (previewPanel) {
+            previewPanel.classList.remove('hidden');
+        }
     }
 
     updateProgress(percentage, message = '') {
