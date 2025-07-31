@@ -762,6 +762,9 @@ class PDFComposerApp {
             this.currentPDF = await pdfjsLib.getDocument(arrayBuffer).promise;
             console.log('PDF document loaded successfully:', this.currentPDF.numPages, 'pages');
             
+            // Update loading icon with first page
+            this.updateLoadingIconWithFirstPage();
+            
             // Verify page count matches
             if (this.totalPages !== this.currentPDF.numPages) {
                 console.warn('Page count mismatch - server:', this.totalPages, 'client:', this.currentPDF.numPages);
@@ -2386,6 +2389,49 @@ class PDFComposerApp {
         
         // Initialize progress at 0%
         this.updateProgress(0, 'Preparing to load PDF...');
+    }
+    
+    async updateLoadingIconWithFirstPage() {
+        if (!this.currentPDF) return;
+        
+        try {
+            console.log('Updating loading icon with first page...');
+            const loadingIcon = document.querySelector('.loading-icon');
+            if (!loadingIcon) return;
+            
+            // Get first page
+            const page = await this.currentPDF.getPage(1);
+            const viewport = page.getViewport({ scale: 1 });
+            
+            // Calculate scale to fit ~48px (original icon size)
+            const targetSize = 48;
+            const scale = Math.min(targetSize / viewport.width, targetSize / viewport.height);
+            const scaledViewport = page.getViewport({ scale });
+            
+            // Create canvas for first page
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = scaledViewport.width;
+            canvas.height = scaledViewport.height;
+            canvas.style.borderRadius = '4px';
+            canvas.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
+            
+            // Render first page
+            await page.render({
+                canvasContext: context,
+                viewport: scaledViewport
+            }).promise;
+            
+            // Replace loading icon with first page
+            loadingIcon.innerHTML = '';
+            loadingIcon.appendChild(canvas);
+            
+            console.log('Loading icon updated with first page');
+            
+        } catch (error) {
+            console.error('Failed to update loading icon with first page:', error);
+            // Keep default icon on error
+        }
     }
 
     showPDFViewer() {
