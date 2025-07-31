@@ -51,88 +51,148 @@
 
             <!-- PDF Viewer -->
             <div id="pdfViewer" class="pdf-viewer hidden">
-                <!-- Sidebar -->
-                <aside class="sidebar">
-                    <div class="sidebar-header">
-                        <h3 class="sidebar-title">SELECT PAGES</h3>
-                        <span id="pageCount" class="page-count">0</span>
+                <!-- Enhanced Thumbnail Panel -->
+                <aside class="thumbnail-panel">
+                    <div class="panel-header">
+                        <div class="panel-title-section">
+                            <h3 class="panel-title">PAGES</h3>
+                            <div class="page-counter">
+                                <span id="pageCount" class="page-count">0</span>
+                                <span class="page-label">TOTAL</span>
+                            </div>
+                        </div>
+                        <div class="selection-summary">
+                            <div class="selection-item">
+                                <span class="selection-icon">○</span>
+                                <span id="citationCount" class="selection-count">0</span>
+                                <span class="selection-label">CITATIONS</span>
+                            </div>
+                            <div class="selection-item">
+                                <span class="selection-icon">☆</span>
+                                <span id="coverCount" class="selection-count">0</span>
+                                <span class="selection-label">COVER</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="thumbnails-container" id="thumbnailsContainer">
-                        <!-- Thumbnails will be dynamically added here -->
+                    <div class="thumbnails-wrapper">
+                        <div class="thumbnails-container" id="thumbnailsContainer">
+                            <div class="thumbnails-loading" id="thumbnailsLoading">
+                                <div class="loading-spinner"></div>
+                                <span class="loading-text">Loading pages...</span>
+                            </div>
+                            <!-- Thumbnails will be dynamically added here -->
+                        </div>
                     </div>
                 </aside>
 
-                <!-- Main Preview Display -->
-                <div class="main-preview">
-                    <!-- Main Preview Panel -->
+                <!-- Enhanced Preview Area -->
+                <div class="preview-area">
                     <div id="previewPanel" class="preview-panel">
                         <div class="preview-header">
-                            <h3 class="preview-title">COMPOSITION PREVIEW</h3>
-                            <div class="preview-header-controls">
-                                <button id="resetCoverBtn" class="control-btn" title="Reset cover position">↻</button>
-                                <button id="togglePreview" class="preview-toggle-btn" title="Toggle Preview">▶</button>
+                            <div class="preview-title-section">
+                                <h3 class="preview-title">COMPOSITION PREVIEW</h3>
+                                <div class="preview-status" id="previewStatus">
+                                    <span class="status-indicator"></span>
+                                    <span class="status-text">Select citations to preview</span>
+                                </div>
+                            </div>
+                            <div class="preview-mode-controls">
+                                <div class="mode-switcher" id="modeSwitcher">
+                                    <button class="mode-btn active" data-mode="custom">
+                                        <span class="mode-icon">⧉</span>
+                                        <span class="mode-label">OVERLAY</span>
+                                    </button>
+                                    <button class="mode-btn" data-mode="sidebyside">
+                                        <span class="mode-icon">⧉⧉</span>
+                                        <span class="mode-label">SIDE×SIDE</span>
+                                    </button>
+                                </div>
+                                <div class="preview-actions">
+                                    <button id="resetCoverBtn" class="action-btn" title="Reset cover position">
+                                        <span class="btn-icon">↻</span>
+                                    </button>
+                                    <button id="togglePreview" class="action-btn" title="Toggle preview visibility">
+                                        <span class="btn-icon">▶</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
+                        
                         <div class="preview-content">
-                            <div class="preview-canvas-container">
-                                <canvas id="previewCanvas"></canvas>
-                                <div id="coverImageContainer" class="cover-image-container hidden">
-                                    <canvas id="coverCanvas" class="cover-canvas"></canvas>
-                                    <div class="cover-selection-indicator"></div>
-                                    <div class="cover-controls">
-                                        <div class="resize-handle resize-handle-nw"></div>
-                                        <div class="resize-handle resize-handle-ne"></div>
-                                        <div class="resize-handle resize-handle-sw"></div>
-                                        <div class="resize-handle resize-handle-se"></div>
+                            <!-- Empty State -->
+                            <div class="preview-empty-state" id="previewEmptyState">
+                                <div class="empty-state-icon">📄</div>
+                                <h4 class="empty-state-title">NO PREVIEW</h4>
+                                <p class="empty-state-text">Select citations from the page thumbnails to generate a composition preview.</p>
+                            </div>
+                            
+                            <!-- Single Preview Container -->
+                            <div class="preview-viewport" id="previewViewport" style="display: none;">
+                                <div class="preview-canvas-container">
+                                    <canvas id="previewCanvas"></canvas>
+                                    <div id="coverImageContainer" class="cover-image-container hidden">
+                                        <canvas id="coverCanvas" class="cover-canvas"></canvas>
+                                        <div class="cover-selection-indicator"></div>
+                                        <div class="cover-controls">
+                                            <div class="resize-handle resize-handle-nw"></div>
+                                            <div class="resize-handle resize-handle-ne"></div>
+                                            <div class="resize-handle resize-handle-sw"></div>
+                                            <div class="resize-handle resize-handle-se"></div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="preview-placeholder">
-                                    <div class="placeholder-icon">📄</div>
-                                    <p>Preview will appear here</p>
-                                </div>
-                                <div class="interaction-overlay" id="interactionOverlay">
-                                    <div class="interaction-hint">
-                                        <span class="hint-text">Drag cover to reposition • Pinch or scroll to resize</span>
+                                    <div class="interaction-overlay" id="interactionOverlay">
+                                        <div class="interaction-hint">
+                                            <span class="hint-text">Drag cover to reposition • Pinch or scroll to resize</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="preview-controls">
-                                <div class="transform-info">
-                                    <h4>COVER TRANSFORM</h4>
-                                    <div class="transform-details">
+                            
+                            <!-- Batch Preview Container -->
+                            <div class="batch-preview-container" id="batchPreviewContainer" style="display: none;">
+                                <div class="batch-preview-list" id="batchPreviewList">
+                                    <!-- Multiple preview items will be added here -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Enhanced Controls Panel -->
+                        <div class="controls-panel" id="controlsPanel" style="display: none;">
+                            <div class="controls-section">
+                                <div class="transform-controls">
+                                    <h4 class="controls-title">COVER TRANSFORM</h4>
+                                    <div class="transform-grid">
                                         <div class="transform-item">
-                                            <label>Position:</label>
+                                            <label>Position</label>
                                             <span id="coverPositionInfo">0, 0</span>
                                         </div>
                                         <div class="transform-item">
-                                            <label>Scale:</label>
+                                            <label>Scale</label>
                                             <span id="coverScaleInfo">25%</span>
                                         </div>
                                         <div class="transform-item">
-                                            <label>Size:</label>
+                                            <label>Size</label>
                                             <span id="coverSizeInfo">0 × 0</span>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="overlay-mode-section">
-                                    <label for="overlayModeSelect" class="export-label">Overlay Mode:</label>
-                                    <select id="overlayModeSelect" class="export-format-select">
-                                        <option value="custom">Custom</option>
-                                        <option value="sidebyside">Side by Side</option>
-                                    </select>
+                                
+                                <div class="export-controls">
+                                    <div class="export-format-section">
+                                        <label for="previewExportFormat" class="control-label">Export Format</label>
+                                        <select id="previewExportFormat" class="format-select">
+                                            <option value="pdf">PDF Document</option>
+                                            <option value="png">PNG Image</option>
+                                            <option value="jpeg">JPEG Image</option>
+                                        </select>
+                                    </div>
+                                    <button id="exportPreviewBtn" class="export-btn" disabled>
+                                        <span class="btn-icon">↗</span>
+                                        <span class="btn-text">EXPORT</span>
+                                    </button>
                                 </div>
-                                <div class="export-section">
-                                    <label for="previewExportFormat" class="export-label">Export Format:</label>
-                                    <select id="previewExportFormat" class="export-format-select">
-                                        <option value="pdf">PDF</option>
-                                        <option value="png">PNG</option>
-                                        <option value="jpeg">JPEG</option>
-                                    </select>
-                                </div>
-                                <button id="exportPreviewBtn" class="export-btn" disabled>
-                                    EXPORT
-                                </button>
                             </div>
+                        </div>
                         </div>
                     </div>
                 </div>
