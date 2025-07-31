@@ -178,6 +178,13 @@ class PDFComposerApp {
     
     onThumbnailGenerationComplete() {
         console.log('All thumbnails generated successfully');
+        
+        // Hide thumbnail loading state
+        const loadingElement = document.getElementById('thumbnailsLoading');
+        if (loadingElement) {
+            loadingElement.style.display = 'none';
+        }
+        
         this.renderThumbnails();
         this.completeProgress();
         
@@ -195,6 +202,12 @@ class PDFComposerApp {
     
     onThumbnailGenerationError(error) {
         console.error('Thumbnail generation failed:', error);
+        
+        // Hide thumbnail loading state
+        const loadingElement = document.getElementById('thumbnailsLoading');
+        if (loadingElement) {
+            loadingElement.style.display = 'none';
+        }
         
         // Create placeholder thumbnails
         this.thumbnails = Array.from({ length: this.totalPages }, (_, i) => ({
@@ -869,6 +882,12 @@ class PDFComposerApp {
         console.log('Total pages:', this.totalPages);
         console.log('Document visibility state:', document.visibilityState);
         console.log('Document hidden:', document.hidden);
+        
+        // Show thumbnail loading state
+        const loadingElement = document.getElementById('thumbnailsLoading');
+        if (loadingElement) {
+            loadingElement.style.display = 'flex';
+        }
         
         // Store original title to restore later
         const originalTitle = document.title;
