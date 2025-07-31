@@ -1411,57 +1411,106 @@ class PDFComposerApp {
             return;
         }
 
+        // Ensure preview panel is visible first
+        const previewPanel = document.getElementById('previewPanel');
+        if (previewPanel && previewPanel.classList.contains('hidden')) {
+            console.log('Preview panel was hidden, showing it first');
+            previewPanel.classList.remove('hidden');
+        }
+
         // Hide empty state and show preview content
         this.hidePreviewEmptyState();
         this.updatePreviewStatus();
         
-        // Show appropriate preview mode
-        if (this.overlayMode === 'sidebyside') {
-            console.log('Generating batch preview for side-by-side mode');
-            this.generateBatchPreview();
-            return;
-        }
-        
-        console.log('Generating overlay preview for custom mode');
-        
-        // Show single preview viewport and controls
+        // Show appropriate preview mode containers
         const previewViewport = document.getElementById('previewViewport');
         const batchPreviewContainer = document.getElementById('batchPreviewContainer');
         const controlsPanel = document.getElementById('controlsPanel');
         
-        // Ensure proper display for overlay mode
-        if (previewViewport) previewViewport.style.display = 'flex';
+        if (this.overlayMode === 'sidebyside') {
+            console.log('Generating side-by-side preview using unified canvas approach');
+            // Use single canvas for side-by-side layout too
+        } else {
+            console.log('Generating custom overlay preview');
+        }
+        
+        // Show single preview viewport and controls for both modes
+        if (previewViewport) {
+            previewViewport.style.display = 'flex';
+            console.log('Preview viewport set to flex display');
+        }
         if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
-        if (controlsPanel) controlsPanel.style.display = 'block';
+        
+        // Show controls only for overlay mode (interactive cover controls)
+        if (controlsPanel) {
+            controlsPanel.style.display = this.overlayMode === 'custom' ? 'block' : 'none';
+        }
 
         const previewCanvas = document.getElementById('previewCanvas');
         const placeholder = previewCanvas?.parentElement?.querySelector('.preview-placeholder');
         const context = previewCanvas.getContext('2d');
 
-        try {
-            // Hide placeholder and show canvas
-            if (placeholder) placeholder.style.display = 'none';
-            previewCanvas.style.display = 'block';
+        // Use requestAnimationFrame to ensure DOM layout is complete
+        requestAnimationFrame(async () => {
+            try {
+                // Hide placeholder and show canvas
+                if (placeholder) placeholder.style.display = 'none';
+                previewCanvas.style.display = 'block';
 
-            // Calculate composition layout - fit to container
-            const container = previewCanvas.parentElement;
-            const containerWidth = container.clientWidth - 24; // Account for margin
-            const containerHeight = container.clientHeight - 24;
+                // Calculate composition layout - fit to container
+                const container = previewCanvas.parentElement;
+                
+                // Force layout reflow to ensure container has proper dimensions
+                container.offsetHeight;
+            
+            let containerWidth = container.clientWidth - 24; // Account for margin
+            let containerHeight = container.clientHeight - 24;
+            
+            // Provide fallback dimensions if container is not sized yet
+            if (containerWidth <= 0) {
+                console.warn('Container width is invalid, using fallback');
+                containerWidth = 600; // Fallback width
+            }
+            if (containerHeight <= 0) {
+                console.warn('Container height is invalid, using fallback');
+                containerHeight = 800; // Fallback height
+            }
             
             const pageWidth = Math.min(containerWidth, 600); // Max 600px width
             const pageHeight = Math.min(containerHeight, pageWidth * 1.4); // A4-like ratio
             const margin = 20;
             const contentWidth = pageWidth - (2 * margin);
             
-            // Calculate how many citation pages can fit per row
+            // Calculate layout based on mode
             const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
-            const pagesPerRow = Math.min(2, citationPages.length);
-            const citationWidth = contentWidth / pagesPerRow;
-            const citationHeight = citationWidth * 1.4; // Maintain aspect ratio
+            let pagesPerRow, citationWidth, citationHeight;
+            
+            if (this.overlayMode === 'sidebyside' && this.selectedCover !== null) {
+                // Side-by-side mode: citations on left, cover on right
+                pagesPerRow = Math.min(2, citationPages.length);
+                citationWidth = (contentWidth * 0.6) / pagesPerRow; // Citations take 60% of width
+                citationHeight = citationWidth * 1.4;
+            } else {
+                // Overlay mode or side-by-side without cover: standard layout
+                pagesPerRow = Math.min(2, citationPages.length);
+                citationWidth = contentWidth / pagesPerRow;
+                citationHeight = citationWidth * 1.4;
+            }
+            
+            // Ensure we have valid dimensions
+            if (pageWidth <= 0 || pageHeight <= 0) {
+                throw new Error(`Invalid canvas dimensions: ${pageWidth}x${pageHeight}`);
+            }
             
             // Set canvas size
             previewCanvas.width = pageWidth;
             previewCanvas.height = pageHeight;
+            
+            console.log('Custom overlay mode canvas setup:', {
+                containerDims: `${container.clientWidth}x${container.clientHeight}`,
+                canvasDims: `${pageWidth}x${pageHeight}`,
+                citations: citationPages.length
+            });
             
             // Clear canvas
             context.fillStyle = '#ffffff';
@@ -1482,17 +1531,30 @@ class PDFComposerApp {
                     x, y, citationWidth, citationHeight);
             }
             
-            // Setup interactive cover if selected (with small delay to ensure DOM is ready)
+            // Handle cover rendering based on mode
             if (this.selectedCover !== null) {
-                console.log('Setting up interactive cover for overlay mode');
-                setTimeout(async () => {
-                    try {
-                        await this.setupInteractiveCover();
-                        console.log('Interactive cover setup completed');
-                    } catch (error) {
-                        console.error('Failed to setup interactive cover:', error);
-                    }
-                }, 100);
+                if (this.overlayMode === 'sidebyside') {
+                    console.log('Rendering cover directly for side-by-side mode');
+                    // Render cover on the right side of the canvas
+                    const coverX = margin + (contentWidth * 0.6) + margin; // Right side after citations
+                    const coverY = currentY;
+                    const coverWidth = contentWidth * 0.35; // 35% of content width
+                    const coverHeight = coverWidth * 1.4; // Maintain aspect ratio
+                    
+                    await this.renderPageToCanvas(context, this.selectedCover, 
+                        coverX, coverY, coverWidth, coverHeight);
+                } else {
+                    console.log('Setting up interactive cover for overlay mode');
+                    // Setup interactive cover for overlay mode
+                    setTimeout(async () => {
+                        try {
+                            await this.setupInteractiveCover();
+                            console.log('Interactive cover setup completed');
+                        } catch (error) {
+                            console.error('Failed to setup interactive cover:', error);
+                        }
+                    }, 100);
+                }
             }
             
             // Enable export button if we have citations (cover is optional for export)
@@ -1501,11 +1563,12 @@ class PDFComposerApp {
                 exportBtn.disabled = !(this.selectedCitations.size > 0);
             }
             
-        } catch (error) {
-            console.error('Preview generation error:', error);
-            if (placeholder) placeholder.style.display = 'block';
-            if (previewCanvas) previewCanvas.style.display = 'none';
-        }
+            } catch (error) {
+                console.error('Preview generation error:', error);
+                if (placeholder) placeholder.style.display = 'block';
+                if (previewCanvas) previewCanvas.style.display = 'none';
+            }
+        });
     }
 
     async renderPageToCanvas(context, pageIndex, x, y, width, height) {
@@ -2895,20 +2958,32 @@ class PDFComposerApp {
         const container = canvas.parentElement;
 
         try {
-            // Get citation and cover pages
-            const citationPageIndex = Array.from(this.selectedCitations)[0];
+            // Get all citation pages and cover page
+            const citationPageIndices = Array.from(this.selectedCitations).sort((a, b) => a - b);
             const coverPageIndex = this.selectedCover;
             
-            const citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
-            const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
+            // Load all pages
+            const citationPages = [];
+            const citationViewports = [];
             
-            const citationViewport = citationPage.getViewport({ scale: 1 });
+            for (const pageIndex of citationPageIndices) {
+                const page = await this.currentPDF.getPage(pageIndex + 1);
+                const viewport = page.getViewport({ scale: 1 });
+                citationPages.push(page);
+                citationViewports.push(viewport);
+            }
+            
+            const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
             const coverViewport = coverPage.getViewport({ scale: 1 });
             
+            // Calculate total width of all citations
+            const totalCitationWidth = citationViewports.reduce((sum, viewport) => sum + viewport.width, 0);
+            
             // Calculate canvas size for side by side layout
-            // Total width = citation width + cover width, height = max of both
-            const maxPageHeight = Math.max(citationViewport.height, coverViewport.height);
-            const totalWidth = citationViewport.width + coverViewport.width;
+            // Total width = all citations width + cover width, height = max of all pages
+            const allViewports = [...citationViewports, coverViewport];
+            const maxPageHeight = Math.max(...allViewports.map(v => v.height));
+            const totalWidth = totalCitationWidth + coverViewport.width;
             const aspectRatio = totalWidth / maxPageHeight;
             
             // Apply same dynamic sizing logic as custom mode
@@ -2936,37 +3011,49 @@ class PDFComposerApp {
             context.fillRect(0, 0, canvasWidth, canvasHeight);
             
             // Calculate scaling for each page to fit the allocated space
-            const citationTargetWidth = canvasWidth * (citationViewport.width / totalWidth);
+            const citationsTargetWidth = canvasWidth * (totalCitationWidth / totalWidth);
             const coverTargetWidth = canvasWidth * (coverViewport.width / totalWidth);
             
-            const citationScale = citationTargetWidth / citationViewport.width;
-            const coverScale = coverTargetWidth / coverViewport.width;
+            // Calculate uniform scale for all pages to maintain proportions
+            const uniformScale = Math.min(
+                citationsTargetWidth / totalCitationWidth,
+                coverTargetWidth / coverViewport.width,
+                canvasHeight / maxPageHeight
+            );
             
-            // Calculate scaled dimensions
-            const scaledCitationHeight = citationViewport.height * citationScale;
-            const scaledCoverHeight = coverViewport.height * coverScale;
-            
-            // Center pages vertically if they're different heights
-            const citationY = (canvasHeight - scaledCitationHeight) / 2;
-            const coverY = (canvasHeight - scaledCoverHeight) / 2;
-            
-            // Render citation page on the left
-            console.log('Rendering citation page', citationPageIndex + 1, 'at scale', citationScale);
-            context.save();
-            context.translate(0, citationY);
-            await citationPage.render({
-                canvasContext: context,
-                viewport: citationPage.getViewport({ scale: citationScale })
-            }).promise;
-            context.restore();
+            // Render all citation pages side by side on the left
+            let currentX = 0;
+            for (let i = 0; i < citationPages.length; i++) {
+                const page = citationPages[i];
+                const viewport = citationViewports[i];
+                const pageIndex = citationPageIndices[i];
+                
+                const scaledWidth = viewport.width * uniformScale;
+                const scaledHeight = viewport.height * uniformScale;
+                const pageY = (canvasHeight - scaledHeight) / 2;
+                
+                console.log(`Rendering citation page ${pageIndex + 1} at scale ${uniformScale}`);
+                context.save();
+                context.translate(currentX, pageY);
+                await page.render({
+                    canvasContext: context,
+                    viewport: page.getViewport({ scale: uniformScale })
+                }).promise;
+                context.restore();
+                
+                currentX += scaledWidth;
+            }
             
             // Render cover page on the right
-            console.log('Rendering cover page', coverPageIndex + 1, 'at scale', coverScale);
+            const scaledCoverHeight = coverViewport.height * uniformScale;
+            const coverY = (canvasHeight - scaledCoverHeight) / 2;
+            
+            console.log('Rendering cover page', coverPageIndex + 1, 'at scale', uniformScale);
             context.save();
-            context.translate(citationTargetWidth, coverY);
+            context.translate(currentX, coverY);
             await coverPage.render({
                 canvasContext: context,
-                viewport: coverPage.getViewport({ scale: coverScale })
+                viewport: coverPage.getViewport({ scale: uniformScale })
             }).promise;
             context.restore();
             
@@ -3735,10 +3822,10 @@ class PDFComposerApp {
         const controlsPanel = document.getElementById('controlsPanel');
         
         if (mode === 'sidebyside') {
-            // Show batch preview for side-by-side mode
-            if (previewViewport) previewViewport.style.display = 'none';
-            if (batchPreviewContainer) batchPreviewContainer.style.display = 'block';
-            if (controlsPanel) controlsPanel.style.display = 'none';
+            // Show unified canvas preview for side-by-side mode
+            if (previewViewport) previewViewport.style.display = 'flex';
+            if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
+            if (controlsPanel) controlsPanel.style.display = 'block';
         } else {
             // Show single preview for overlay mode
             if (previewViewport) previewViewport.style.display = 'flex';
