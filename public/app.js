@@ -159,8 +159,14 @@ class PDFComposerApp {
             
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
+            
+            // Set canvas to exact rendered size (no extra space)
+            canvas.width = Math.round(viewport.width);
+            canvas.height = Math.round(viewport.height);
+            
+            // Fill with white background for clean edges
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
             
             await page.render({
                 canvasContext: context,
@@ -915,21 +921,34 @@ class PDFComposerApp {
                     const page = await this.currentPDF.getPage(pageNum);
                     console.log(`Page ${pageNum} loaded in ${(performance.now() - startTime).toFixed(2)}ms`);
                     
-                    // Use much smaller scale for very large documents
-                    let scale = 0.3;
-                    if (this.totalPages > 500) scale = 0.1;      // Very small for 500+ pages
-                    else if (this.totalPages > 200) scale = 0.15; // Small for 200+ pages
+                    // Calculate optimal scale for thumbnail generation
+                    // Target thumbnail width for consistent display
+                    const targetThumbnailWidth = 150;
+                    const baseViewport = page.getViewport({ scale: 1 });
+                    let scale = targetThumbnailWidth / baseViewport.width;
+                    
+                    // Adjust scale based on document size for performance
+                    if (this.totalPages > 500) scale *= 0.6;      // Smaller for 500+ pages
+                    else if (this.totalPages > 200) scale *= 0.8; // Slightly smaller for 200+ pages
+                    
+                    // Ensure minimum scale for readability and maximum for performance
+                    scale = Math.max(0.15, Math.min(0.5, scale));
                     
                     const viewport = page.getViewport({ scale });
                     
-                    // Create canvas for thumbnail
+                    // Create canvas sized to viewport (no extra space)
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
+                    
+                    // Set canvas to exact rendered size
+                    canvas.width = Math.round(viewport.width);
+                    canvas.height = Math.round(viewport.height);
 
                     const renderStartTime = performance.now();
-                    // Render page to canvas
+                    // Render page to canvas with white background for clean edges
+                    context.fillStyle = '#ffffff';
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                    
                     await page.render({
                         canvasContext: context,
                         viewport: viewport
@@ -1382,6 +1401,8 @@ class PDFComposerApp {
     }
 
     async generateCompositionPreview() {
+        console.log('generateCompositionPreview called - Mode:', this.overlayMode, 'Citations:', this.selectedCitations.size, 'Cover:', this.selectedCover);
+        
         if (!this.currentPDF || this.selectedCitations.size === 0) {
             this.showPreviewEmptyState();
             return;
@@ -1393,23 +1414,30 @@ class PDFComposerApp {
         
         // Show appropriate preview mode
         if (this.overlayMode === 'sidebyside') {
+            console.log('Generating batch preview for side-by-side mode');
             this.generateBatchPreview();
             return;
         }
         
+        console.log('Generating overlay preview for custom mode');
+        
         // Show single preview viewport and controls
         const previewViewport = document.getElementById('previewViewport');
+        const batchPreviewContainer = document.getElementById('batchPreviewContainer');
         const controlsPanel = document.getElementById('controlsPanel');
+        
+        // Ensure proper display for overlay mode
         if (previewViewport) previewViewport.style.display = 'flex';
-        if (controlsPanel && this.selectedCover !== null) controlsPanel.style.display = 'block';
+        if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
+        if (controlsPanel) controlsPanel.style.display = 'block';
 
         const previewCanvas = document.getElementById('previewCanvas');
-        const placeholder = previewCanvas.parentElement.querySelector('.preview-placeholder');
+        const placeholder = previewCanvas?.parentElement?.querySelector('.preview-placeholder');
         const context = previewCanvas.getContext('2d');
 
         try {
             // Hide placeholder and show canvas
-            placeholder.style.display = 'none';
+            if (placeholder) placeholder.style.display = 'none';
             previewCanvas.style.display = 'block';
 
             // Calculate composition layout - fit to container
@@ -1453,21 +1481,27 @@ class PDFComposerApp {
             
             // Setup interactive cover if selected (with small delay to ensure DOM is ready)
             if (this.selectedCover !== null) {
+                console.log('Setting up interactive cover for overlay mode');
                 setTimeout(async () => {
-                    await this.setupInteractiveCover();
+                    try {
+                        await this.setupInteractiveCover();
+                        console.log('Interactive cover setup completed');
+                    } catch (error) {
+                        console.error('Failed to setup interactive cover:', error);
+                    }
                 }, 100);
             }
             
-            // Enable export button if we have composition (citations + cover)
+            // Enable export button if we have citations (cover is optional for export)
             const exportBtn = document.getElementById('exportPreviewBtn');
             if (exportBtn) {
-                exportBtn.disabled = !(this.selectedCitations.size > 0 && this.selectedCover !== null);
+                exportBtn.disabled = !(this.selectedCitations.size > 0);
             }
             
         } catch (error) {
             console.error('Preview generation error:', error);
-            placeholder.style.display = 'block';
-            previewCanvas.style.display = 'none';
+            if (placeholder) placeholder.style.display = 'block';
+            if (previewCanvas) previewCanvas.style.display = 'none';
         }
     }
 
@@ -3029,7 +3063,7 @@ class PDFComposerApp {
             // Update export button state for single page preview
             const exportBtn = document.getElementById('exportPreviewBtn');
             if (exportBtn) {
-                exportBtn.disabled = !(this.selectedCitations.size > 0 && this.selectedCover !== null);
+                exportBtn.disabled = !(this.selectedCitations.size > 0);
             }
             
         } catch (error) {
@@ -3642,6 +3676,11 @@ class PDFComposerApp {
         if (this.hasActivePreview()) {
             this.generateCompositionPreview();
         }
+        
+        // If switching to overlay mode and cover is selected, setup interactive cover
+        if (mode === 'custom' && this.selectedCover !== null) {
+            setTimeout(() => this.setupInteractiveCover(), 100);
+        }
     }
     
     updatePreviewMode(mode) {
@@ -3661,10 +3700,10 @@ class PDFComposerApp {
             if (controlsPanel) controlsPanel.style.display = 'block';
         }
         
-        // Hide/show interactive cover controls based on mode
+        // Hide/show interactive cover controls based on mode and cover selection
         const coverContainer = document.getElementById('coverImageContainer');
         if (coverContainer) {
-            if (mode === 'sidebyside') {
+            if (mode === 'sidebyside' || this.selectedCover === null) {
                 coverContainer.classList.add('hidden');
             } else {
                 coverContainer.classList.remove('hidden');

@@ -1,5 +1,43 @@
 /* PDF Composer Web - Minimal Functional Styles */
 
+:root {
+    /* Color System */
+    --accent-primary: #ff6b9d;
+    --accent-blue: #4a9eff;
+    --text-primary: #fff;
+    --text-secondary: #ccc;
+    --text-muted: rgba(255, 107, 157, 0.6);
+    --bg-primary: #000;
+    --bg-secondary: rgba(0, 0, 0, 0.8);
+    --bg-glass: rgba(0, 0, 0, 0.7);
+    --bg-panel: rgba(0, 0, 0, 0.6);
+    --bg-panel-hover: rgba(0, 0, 0, 0.8);
+    --border-subtle: rgba(255, 107, 157, 0.2);
+    --border-hover: rgba(255, 107, 157, 0.5);
+    
+    /* Spacing System */
+    --space-xs: 4px;
+    --space-sm: 6px;
+    --space-md: 12px;
+    --space-lg: 16px;
+    --space-xl: 24px;
+    --space-2xl: 32px;
+    
+    /* Border Radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.7);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.8);
+    
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-smooth: 0.3s ease;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -9,7 +47,7 @@
 body {
     font-family: 'Courier New', monospace;
     background: #000;
-    color: #fff;
+    color: var(--text-primary);
     overflow: auto;
 }
 
@@ -79,7 +117,7 @@ body {
     padding: 6px 20px;
     background: rgba(0, 0, 0, 0.7);
     font-size: 10px;
-    color: rgba(255, 107, 157, 0.6);
+    color: var(--text-muted);
     border-top: 1px solid #333;
 }
 
@@ -166,7 +204,7 @@ body {
 
 .upload-card p {
     margin-bottom: 20px;
-    color: #ccc;
+    color: var(--text-secondary);
 }
 
 .upload-card-btn {
@@ -385,13 +423,13 @@ body {
 
 .sidebar-title {
     font-size: 12px;
-    color: rgba(255, 107, 157, 0.7);
+    color: var(--text-secondary);
     font-weight: bold;
 }
 
 .page-count {
     font-size: 12px;
-    color: rgba(255, 107, 157, 0.7);
+    color: var(--text-secondary);
     font-family: 'Courier New', monospace;
 }
 
@@ -433,11 +471,12 @@ body {
 
 .thumbnail-content {
     padding: 6px;
+    /* Ensure content fits properly */
+    box-sizing: border-box;
 }
 
 .thumbnail-image {
     width: 100%;
-    height: 120px;
     background: #fff;
     border-radius: 2px;
     display: flex;
@@ -446,16 +485,28 @@ body {
     margin-bottom: 4px;
     position: relative;
     overflow: hidden;
+    /* Maintain aspect ratio and remove white space */
+    height: auto;
+    min-height: 80px;
+    line-height: 0; /* Remove text baseline spacing */
 }
 
 .thumbnail-image img {
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: auto;
     object-fit: contain;
+    /* Ensure no white space around image */
+    display: block;
+    border-radius: 2px;
+    /* Remove any potential spacing issues */
+    vertical-align: top;
+    margin: 0;
+    padding: 0;
+    background: #fff;
 }
 
 .thumbnail-loading {
-    color: #666;
+    color: var(--text-muted);
     font-size: 12px;
 }
 
@@ -464,7 +515,7 @@ body {
     justify-content: space-between;
     align-items: center;
     font-size: 10px;
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .page-number {
@@ -509,7 +560,7 @@ body {
     border: none;
     border-radius: 50%;
     background: rgba(0, 0, 0, 0.7);
-    color: #fff;
+    color: var(--text-primary);
     font-size: 12px;
     cursor: pointer;
     display: flex;
@@ -600,7 +651,7 @@ body {
 }
 
 #currentPageDisplay {
-    color: #fff;
+    color: var(--text-primary);
     font-family: 'Courier New', monospace;
     font-size: 14px;
     min-width: 80px;
@@ -738,7 +789,7 @@ body {
 .close-btn {
     background: none;
     border: none;
-    color: #fff;
+    color: var(--text-secondary);
     font-size: 24px;
     cursor: pointer;
     padding: 0;
@@ -766,7 +817,7 @@ body {
 }
 
 .summary-item label {
-    color: #ccc;
+    color: var(--text-secondary);
 }
 
 .summary-item span {
@@ -785,7 +836,7 @@ body {
 .option-group label {
     display: block;
     margin-bottom: 5px;
-    color: #ccc;
+    color: var(--text-secondary);
     font-size: 12px;
 }
 
@@ -794,7 +845,7 @@ body {
     padding: 8px;
     background: #333;
     border: 1px solid #555;
-    color: #fff;
+    color: var(--text-primary);
     border-radius: 4px;
     font-family: 'Courier New', monospace;
 }
@@ -820,7 +871,7 @@ body {
 
 .compose-btn:disabled {
     background: #333;
-    color: #666;
+    color: var(--text-muted);
     cursor: not-allowed;
 }
 
@@ -834,7 +885,7 @@ body {
 
 .toast {
     background: rgba(0, 0, 0, 0.9);
-    color: #fff;
+    color: var(--text-primary);
     padding: 12px 16px;
     border-radius: 4px;
     border: 1px solid #ff6b9d;
@@ -1020,7 +1071,7 @@ body {
 }
 
 .hint-text {
-    color: rgba(255, 107, 157, 0.9);
+    color: var(--text-primary);
     font-size: 10px;
     font-family: 'Courier New', monospace;
     text-align: center;
@@ -1038,7 +1089,7 @@ body {
 
 .transform-info h4 {
     font-size: 10px;
-    color: rgba(255, 107, 157, 0.7);
+    color: var(--text-secondary);
     margin-bottom: 8px;
     letter-spacing: 1px;
 }
@@ -1057,7 +1108,7 @@ body {
 }
 
 .transform-item label {
-    color: #ccc;
+    color: var(--text-secondary);
 }
 
 .transform-item span {
@@ -1089,7 +1140,7 @@ body {
     padding: 6px;
     background: #333;
     border: 1px solid #555;
-    color: #fff;
+    color: var(--text-primary);
     border-radius: 4px;
     font-family: 'Courier New', monospace;
     font-size: 12px;
@@ -1116,7 +1167,7 @@ body {
 
 .export-btn:disabled {
     background: #333;
-    color: #666;
+    color: var(--text-muted);
     cursor: not-allowed;
 }
 
@@ -1152,7 +1203,7 @@ body {
 .close-btn {
     background: none;
     border: none;
-    color: #fff;
+    color: var(--text-secondary);
     font-size: 24px;
     cursor: pointer;
     padding: 0;
@@ -1180,7 +1231,7 @@ body {
 }
 
 .summary-item label {
-    color: #ccc;
+    color: var(--text-secondary);
 }
 
 .summary-item span {
@@ -1199,7 +1250,7 @@ body {
 .option-group label {
     display: block;
     margin-bottom: 5px;
-    color: #ccc;
+    color: var(--text-secondary);
     font-size: 12px;
 }
 
@@ -1208,7 +1259,7 @@ body {
     padding: 8px;
     background: #333;
     border: 1px solid #555;
-    color: #fff;
+    color: var(--text-primary);
     border-radius: 4px;
     font-family: 'Courier New', monospace;
 }
@@ -1252,7 +1303,7 @@ body {
 
 .action-btn:disabled {
     background: #333;
-    color: #666;
+    color: var(--text-muted);
     cursor: not-allowed;
     border-color: #555;
 }
@@ -1330,14 +1381,18 @@ body {
     display: flex;
     align-items: center;
     gap: var(--space-md);
+    flex-shrink: 0;
 }
 
 .mode-switcher {
     display: flex;
-    background: var(--bg-panel);
+    background: rgba(0, 0, 0, 0.8);
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-subtle);
     overflow: hidden;
+    position: relative;
+    z-index: 1;
+    box-shadow: var(--shadow-sm);
 }
 
 .mode-btn {
@@ -1345,26 +1400,39 @@ body {
     align-items: center;
     gap: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
-    background: transparent;
+    background: rgba(0, 0, 0, 0.3);
     border: none;
     color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 1px;
     cursor: pointer;
     transition: all var(--transition-fast);
     text-transform: uppercase;
+    min-width: fit-content;
+    white-space: nowrap;
+    flex: 1;
+    justify-content: center;
 }
 
 .mode-btn:hover {
-    background: var(--bg-panel-hover);
+    background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
+    transform: translateY(-1px);
+    border-color: rgba(255, 107, 157, 0.3);
 }
 
 .mode-btn.active {
     background: var(--accent-primary);
-    color: var(--bg-primary);
+    color: #000;
     box-shadow: var(--shadow-sm);
+    font-weight: 700;
+    text-shadow: none;
+}
+
+.mode-btn + .mode-btn {
+    border-left: 1px solid var(--border-subtle);
 }
 
 .mode-icon {
