@@ -3108,11 +3108,11 @@ class PDFComposerApp {
         
         previewPanel.classList.remove('hidden');
         
-        // Priority 1: Show composition if both citation and cover are selected
-        if (this.selectedCitations.size > 0 && this.selectedCover !== null) {
+        // Priority 1: Show composition if citations are selected (cover is optional)
+        if (this.selectedCitations.size > 0) {
             console.log('SHOWING COMPOSITION PREVIEW');
-            this.renderCompositionPreview();
-            if (resetCoverBtn) resetCoverBtn.style.display = 'block';
+            this.generateCompositionPreview();
+            if (resetCoverBtn) resetCoverBtn.style.display = this.selectedCover !== null ? 'block' : 'none';
             return;
         }
         
@@ -3821,16 +3821,13 @@ class PDFComposerApp {
         const batchPreviewContainer = document.getElementById('batchPreviewContainer');
         const controlsPanel = document.getElementById('controlsPanel');
         
-        if (mode === 'sidebyside') {
-            // Show unified canvas preview for side-by-side mode
-            if (previewViewport) previewViewport.style.display = 'flex';
-            if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
-            if (controlsPanel) controlsPanel.style.display = 'block';
-        } else {
-            // Show single preview for overlay mode
-            if (previewViewport) previewViewport.style.display = 'flex';
-            if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
-            if (controlsPanel) controlsPanel.style.display = 'block';
+        // Both modes now use unified canvas preview
+        if (previewViewport) previewViewport.style.display = 'flex';
+        if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
+        
+        // Show controls only for overlay mode (interactive cover controls)
+        if (controlsPanel) {
+            controlsPanel.style.display = mode === 'custom' ? 'block' : 'none';
         }
         
         // Hide/show interactive cover controls based on mode and cover selection
