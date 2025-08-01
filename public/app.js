@@ -3256,10 +3256,16 @@ class PDFComposerApp {
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
             canvas.style.display = 'block';
+            canvas.style.margin = '0';
+            canvas.style.padding = '0';
+            canvas.style.verticalAlign = 'top';
             
-            // Remove all padding - let container fit exactly to canvas size
+            // Remove all padding and ensure container fits exactly to canvas size
             container.style.background = 'transparent';
             container.style.padding = '0px';
+            container.style.margin = '0px';
+            container.style.width = canvasWidth + 'px';
+            container.style.height = canvasHeight + 'px';
             
             // Hide placeholder
             const placeholder = container.querySelector('.preview-placeholder');
