@@ -2500,67 +2500,44 @@ class PDFComposerApp {
             
             // Get first page
             const page = await this.currentPDF.getPage(1);
-            
-            // Set canvas to fixed 64x64 size
-            canvas.width = 64;
-            canvas.height = 64;
-            canvas.style.width = '64px';
-            canvas.style.height = '64px';
-            
-            // Get context and clear canvas
-            const context = canvas.getContext('2d');
-            context.fillStyle = 'white';
-            context.fillRect(0, 0, 64, 64);
-            
-            // Get page dimensions at scale 1
             const viewport = page.getViewport({ scale: 1 });
             
-            // Calculate scale to fit the page into 64x64 while maintaining aspect ratio
-            const scale = Math.min(64 / viewport.width, 64 / viewport.height);
-            
-            // Calculate the scaled dimensions
-            const scaledWidth = viewport.width * scale;
-            const scaledHeight = viewport.height * scale;
-            
-            // Center the page in the 64x64 canvas
-            const offsetX = (64 - scaledWidth) / 2;
-            const offsetY = (64 - scaledHeight) / 2;
-            
-            // Create a temporary canvas for rendering the full page
-            const tempCanvas = document.createElement('canvas');
-            const tempContext = tempCanvas.getContext('2d');
+            // Calculate scale to fit within max 64px while maintaining aspect ratio
+            const maxSize = 64;
+            const scale = Math.min(maxSize / viewport.width, maxSize / viewport.height);
             const scaledViewport = page.getViewport({ scale });
             
-            tempCanvas.width = scaledViewport.width;
-            tempCanvas.height = scaledViewport.height;
+            // Set canvas to exact scaled size (no white padding)
+            canvas.width = Math.round(scaledViewport.width);
+            canvas.height = Math.round(scaledViewport.height);
+            canvas.style.width = canvas.width + 'px';
+            canvas.style.height = canvas.height + 'px';
             
-            // Render page to temp canvas
+            // Render page directly to canvas (no background, no centering)
+            const context = canvas.getContext('2d');
             await page.render({
-                canvasContext: tempContext,
+                canvasContext: context,
                 viewport: scaledViewport
             }).promise;
             
-            // Draw the temp canvas onto the final canvas, centered
-            context.drawImage(tempCanvas, offsetX, offsetY);
-            
-            console.log(`Loading icon ready: 64x64px with page scaled to ${scaledWidth.toFixed(1)}x${scaledHeight.toFixed(1)}px`);
+            console.log(`Loading icon ready: ${canvas.width}x${canvas.height}px (no padding)`);
             
         } catch (error) {
             console.error('Failed to render loading icon:', error);
             // Simple fallback
             const canvas = document.getElementById('loadingPreviewCanvas');
             if (canvas) {
-                canvas.width = 64;
-                canvas.height = 64;
-                canvas.style.width = '64px';
-                canvas.style.height = '64px';
+                canvas.width = 48;
+                canvas.height = 48;
+                canvas.style.width = '48px';
+                canvas.style.height = '48px';
                 const context = canvas.getContext('2d');
                 context.fillStyle = '#444';
-                context.fillRect(0, 0, 64, 64);
+                context.fillRect(0, 0, 48, 48);
                 context.fillStyle = 'white';
-                context.font = '32px Arial';
+                context.font = '28px Arial';
                 context.textAlign = 'center';
-                context.fillText('📄', 32, 40);
+                context.fillText('📄', 24, 30);
             }
         }
     }
