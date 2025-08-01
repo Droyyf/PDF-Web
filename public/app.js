@@ -675,8 +675,33 @@ class PDFComposerApp {
             return;
         }
 
-        this.showLoadingState();
-        this.updateProgress(5, 'File selected, starting upload...');
+        // Load PDF client-side first to prepare the first page icon
+        try {
+            const fileReader = new FileReader();
+            fileReader.onload = async (e) => {
+                try {
+                    const typedArray = new Uint8Array(e.target.result);
+                    const tempPDF = await pdfjsLib.getDocument({ data: typedArray }).promise;
+                    this.currentPDF = tempPDF;
+                    await this.updateLoadingIconWithFirstPage();
+                    
+                    // NOW show loading screen with first page ready as icon
+                    this.showLoadingState();
+                    this.updateProgress(10, 'Starting upload...');
+                } catch (error) {
+                    console.error('Failed to load PDF for preview:', error);
+                    // Fallback: show loading screen anyway
+                    this.showLoadingState();
+                    this.updateProgress(5, 'Starting upload...');
+                }
+            };
+            fileReader.readAsArrayBuffer(file);
+        } catch (error) {
+            console.error('Failed to prepare PDF preview:', error);
+            // Fallback: show loading screen anyway
+            this.showLoadingState();
+            this.updateProgress(5, 'Starting upload...');
+        }
         
         // Set up a timeout to prevent infinite loading
         const loadingTimeout = setTimeout(() => {
@@ -2459,35 +2484,28 @@ class PDFComposerApp {
         
         try {
             console.log('Updating loading icon with first page...');
-            const loadingIcon = document.querySelector('.loading-icon');
-            if (!loadingIcon) return;
+            const canvas = document.getElementById('loadingPreviewCanvas');
+            if (!canvas) return;
             
             // Get first page
             const page = await this.currentPDF.getPage(1);
             const viewport = page.getViewport({ scale: 1 });
             
-            // Calculate scale to fit ~48px (original icon size)
-            const targetSize = 48;
+            // Calculate scale to fit ~64px (good loading preview size)
+            const targetSize = 64;
             const scale = Math.min(targetSize / viewport.width, targetSize / viewport.height);
             const scaledViewport = page.getViewport({ scale });
             
-            // Create canvas for first page
-            const canvas = document.createElement('canvas');
+            // Set up canvas
             const context = canvas.getContext('2d');
             canvas.width = scaledViewport.width;
             canvas.height = scaledViewport.height;
-            canvas.style.borderRadius = '4px';
-            canvas.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
             
             // Render first page
             await page.render({
                 canvasContext: context,
                 viewport: scaledViewport
             }).promise;
-            
-            // Replace loading icon with first page
-            loadingIcon.innerHTML = '';
-            loadingIcon.appendChild(canvas);
             
             console.log('Loading icon updated with first page');
             
