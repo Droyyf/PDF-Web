@@ -1593,13 +1593,17 @@ body {
     display: inline-block;
     background: transparent;
     padding: 8px;
-    width: fit-content;
-    height: fit-content;
+    width: fit-content !important;
+    height: fit-content !important;
+    max-width: none !important;
+    max-height: none !important;
+    min-width: auto !important;
+    min-height: auto !important;
 }
 
 #previewCanvas {
     display: block;
-    max-width: 100%;
+    width: auto;
     height: auto;
 }
 
