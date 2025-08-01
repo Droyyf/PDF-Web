@@ -3264,11 +3264,11 @@ class PDFComposerApp {
             canvas.height = canvasHeight;
             canvas.style.display = 'block';
             
-            // Add padding that's 7.5% of the image dimensions for perfect border extension
+            // Add small padding for clean aesthetic - 7.5% extension around image
             const paddingX = Math.round(canvasWidth * 0.075);
             const paddingY = Math.round(canvasHeight * 0.075);
             
-            // Let CSS handle container sizing with calculated padding for border extension
+            // Apply dynamic padding to make existing border/shadow wrap tightly around image
             container.style.background = 'transparent';
             container.style.padding = `${paddingY}px ${paddingX}px`;
             

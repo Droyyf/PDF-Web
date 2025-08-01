@@ -1589,7 +1589,7 @@ body {
     position: relative;
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
-    overflow: visible;
+    overflow: hidden;
     display: inline-block;
     background: transparent;
     width: fit-content !important;
@@ -1598,7 +1598,6 @@ body {
     max-height: none !important;
     min-width: auto !important;
     min-height: auto !important;
-    border: 3px solid #ff1493;
 }
 
 #previewCanvas {
