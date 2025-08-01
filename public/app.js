@@ -2521,13 +2521,20 @@ class PDFComposerApp {
             canvas.style.width = canvas.width + 'px';
             canvas.style.height = canvas.height + 'px';
             
-            // Get context and render
+            // Get context and render with proper settings
             const context = canvas.getContext('2d');
             
-            // Render using the scaled viewport (this should show full page)
+            // Set canvas background to white for better contrast
+            context.fillStyle = 'white';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Render using the scaled viewport with enhanced settings
             await page.render({
                 canvasContext: context,
-                viewport: scaledViewport
+                viewport: scaledViewport,
+                intent: 'display', // Optimize for display
+                renderInteractiveForms: false,
+                annotationMode: 0 // Disable annotations for cleaner render
             }).promise;
             
             console.log(`Loading icon rendered: ${canvas.width}x${canvas.height}px with scale ${scale}`);

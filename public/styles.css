@@ -752,7 +752,10 @@ body {
     max-width: 64px;
     max-height: 64px;
     object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
     image-rendering: crisp-edges;
+    filter: contrast(1.1) brightness(1.05);
+    background: white;
 }
 
 @keyframes pulse {
