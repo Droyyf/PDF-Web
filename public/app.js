@@ -3264,12 +3264,9 @@ class PDFComposerApp {
             canvas.height = canvasHeight;
             canvas.style.display = 'block';
             
-            // Add minimal padding for clean aesthetic - much smaller fixed padding
-            const padding = 15; // Small fixed padding instead of percentage
-            
-            // Apply minimal padding to make existing border/shadow wrap tightly around image
+            // Remove all padding - let container fit exactly to canvas size
             container.style.background = 'transparent';
-            container.style.padding = `${padding}px`;
+            container.style.padding = '0px';
             
             // Hide placeholder
             const placeholder = container.querySelector('.preview-placeholder');

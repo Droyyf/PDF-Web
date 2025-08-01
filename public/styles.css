@@ -1589,6 +1589,7 @@ body {
     position: relative;
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     overflow: hidden;
     display: inline-block;
     background: transparent;
