@@ -1421,7 +1421,19 @@ class PDFComposerApp {
         if (previewEmptyState) previewEmptyState.style.display = 'flex';
         if (previewViewport) previewViewport.style.display = 'none';
         if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
-        if (controlsPanel) controlsPanel.style.display = 'none';
+        if (controlsPanel) {
+            controlsPanel.style.display = 'block';
+            // Hide transform controls in empty state
+            const transformControls = controlsPanel.querySelector('.transform-controls');
+            if (transformControls) {
+                transformControls.style.display = 'none';
+            }
+            // Disable export button in empty state
+            const exportBtn = document.getElementById('exportPreviewBtn');
+            if (exportBtn) {
+                exportBtn.disabled = true;
+            }
+        }
     }
     
     hidePreviewEmptyState() {
@@ -1458,13 +1470,6 @@ class PDFComposerApp {
         const batchPreviewContainer = document.getElementById('batchPreviewContainer');
         const controlsPanel = document.getElementById('controlsPanel');
         
-        if (this.overlayMode === 'sidebyside') {
-            console.log('Generating side-by-side preview using unified canvas approach');
-            // Use single canvas for side-by-side layout too
-        } else {
-            console.log('Generating custom overlay preview');
-        }
-        
         // Show single preview viewport and controls for both modes
         if (previewViewport) {
             previewViewport.style.display = 'flex';
@@ -1472,9 +1477,25 @@ class PDFComposerApp {
         }
         if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
         
-        // Show controls only for overlay mode (interactive cover controls)
+        // Always show controls panel, but conditionally show transform controls
         if (controlsPanel) {
-            controlsPanel.style.display = this.overlayMode === 'custom' ? 'block' : 'none';
+            controlsPanel.style.display = 'block';
+            // Show transform controls only in overlay mode
+            const transformControls = controlsPanel.querySelector('.transform-controls');
+            if (transformControls) {
+                transformControls.style.display = this.overlayMode === 'custom' ? 'block' : 'none';
+            }
+        }
+
+        // Delegate to appropriate rendering function based on mode and cover selection
+        if (this.selectedCover !== null && this.overlayMode === 'sidebyside') {
+            console.log('Delegating to side-by-side rendering');
+            await this.renderSideBySidePreview();
+            return;
+        } else if (this.selectedCover !== null && this.overlayMode === 'custom') {
+            console.log('Delegating to custom overlay rendering');
+            await this.renderCustomOverlayPreview();
+            return;
         }
 
         const previewCanvas = document.getElementById('previewCanvas');
@@ -1562,31 +1583,8 @@ class PDFComposerApp {
                     x, y, citationWidth, citationHeight);
             }
             
-            // Handle cover rendering based on mode
-            if (this.selectedCover !== null) {
-                if (this.overlayMode === 'sidebyside') {
-                    console.log('Rendering cover directly for side-by-side mode');
-                    // Render cover on the right side of the canvas
-                    const coverX = margin + (contentWidth * 0.6) + margin; // Right side after citations
-                    const coverY = currentY;
-                    const coverWidth = contentWidth * 0.35; // 35% of content width
-                    const coverHeight = coverWidth * 1.4; // Maintain aspect ratio
-                    
-                    await this.renderPageToCanvas(context, this.selectedCover, 
-                        coverX, coverY, coverWidth, coverHeight);
-                } else {
-                    console.log('Setting up interactive cover for overlay mode');
-                    // Setup interactive cover for overlay mode
-                    setTimeout(async () => {
-                        try {
-                            await this.setupInteractiveCover();
-                            console.log('Interactive cover setup completed');
-                        } catch (error) {
-                            console.error('Failed to setup interactive cover:', error);
-                        }
-                    }, 100);
-                }
-            }
+            // Handle cover rendering for fallback cases (when cover not selected)
+            // Note: Cases with cover selected are handled by delegation earlier
             
             // Enable export button if we have citations (cover is optional for export)
             const exportBtn = document.getElementById('exportPreviewBtn');
@@ -1665,7 +1663,19 @@ class PDFComposerApp {
         // Show batch preview container and hide single preview
         if (batchPreviewContainer) batchPreviewContainer.style.display = 'block';
         if (previewViewport) previewViewport.style.display = 'none';
-        if (controlsPanel) controlsPanel.style.display = 'none';
+        if (controlsPanel) {
+            controlsPanel.style.display = 'block';
+            // Hide transform controls in batch preview mode
+            const transformControls = controlsPanel.querySelector('.transform-controls');
+            if (transformControls) {
+                transformControls.style.display = 'none';
+            }
+            // Disable export button in batch mode (not supported yet)
+            const exportBtn = document.getElementById('exportPreviewBtn');
+            if (exportBtn) {
+                exportBtn.disabled = true;
+            }
+        }
 
         if (!batchPreviewList) return;
 
@@ -3340,6 +3350,13 @@ class PDFComposerApp {
     async setupInteractiveCover() {
         if (this.selectedCover === null) return;
         
+        // Prevent concurrent setup calls that could cause scaling issues
+        if (this._setupCoverInProgress) {
+            console.log('setupInteractiveCover already in progress, skipping');
+            return;
+        }
+        this._setupCoverInProgress = true;
+        
         console.log('Setting up interactive cover for page', this.selectedCover);
         
         try {
@@ -3347,6 +3364,7 @@ class PDFComposerApp {
             const coverThumbnail = this.thumbnails[this.selectedCover];
             if (!coverThumbnail || !coverThumbnail.buffer) {
                 console.warn('Cover thumbnail not available');
+                this._setupCoverInProgress = false;
                 return;
             }
 
@@ -3367,6 +3385,7 @@ class PDFComposerApp {
                 console.log('Cover container made visible and interactive');
             } else {
                 console.error('Cannot show cover container - element not found');
+                this._setupCoverInProgress = false;
                 return;
             }
 
@@ -3375,6 +3394,9 @@ class PDFComposerApp {
 
         } catch (error) {
             console.error('Error setting up interactive cover:', error);
+        } finally {
+            // Always clear the progress flag
+            this._setupCoverInProgress = false;
         }
     }
 
@@ -3394,13 +3416,21 @@ class PDFComposerApp {
         
         return new Promise((resolve, reject) => {
             img.onload = () => {
-                // Set original dimensions
+                // Set original dimensions - ALWAYS use the actual image dimensions
                 this.coverTransform.originalWidth = img.width;
                 this.coverTransform.originalHeight = img.height;
                 
-                // Calculate initial size (25% scale)
-                const scaledWidth = img.width * this.coverTransform.scale;
-                const scaledHeight = img.height * this.coverTransform.scale;
+                // CRITICAL FIX: Always use the current scale from coverTransform
+                // This prevents cumulative scaling issues on mode switches
+                const currentScale = this.coverTransform.scale;
+                const scaledWidth = img.width * currentScale;
+                const scaledHeight = img.height * currentScale;
+                
+                console.log('CreateCoverCanvas - Scale application:', {
+                    originalSize: { width: img.width, height: img.height },
+                    currentScale: currentScale,
+                    scaledSize: { width: scaledWidth, height: scaledHeight }
+                });
                 
                 // Set canvas size
                 coverCanvas.width = scaledWidth;
@@ -3410,7 +3440,7 @@ class PDFComposerApp {
                 coverContainer.style.width = scaledWidth + 'px';
                 coverContainer.style.height = scaledHeight + 'px';
                 
-                // Draw the image
+                // Draw the image at the calculated scaled size
                 ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
                 
                 resolve();
@@ -3918,18 +3948,26 @@ class PDFComposerApp {
         if (previewViewport) previewViewport.style.display = 'flex';
         if (batchPreviewContainer) batchPreviewContainer.style.display = 'none';
         
-        // Show controls only for overlay mode (interactive cover controls)
+        // Always show controls panel, but conditionally show transform controls
         if (controlsPanel) {
-            controlsPanel.style.display = mode === 'custom' ? 'block' : 'none';
+            controlsPanel.style.display = 'block';
+            // Show transform controls only in overlay mode
+            const transformControls = controlsPanel.querySelector('.transform-controls');
+            if (transformControls) {
+                transformControls.style.display = mode === 'custom' ? 'block' : 'none';
+            }
         }
         
         // Hide/show interactive cover controls based on mode and cover selection
         const coverContainer = document.getElementById('coverImageContainer');
         if (coverContainer) {
             if (mode === 'sidebyside' || this.selectedCover === null) {
+                // Hide interactive cover overlay in side-by-side mode or when no cover selected
                 coverContainer.classList.add('hidden');
-            } else {
+            } else if (mode === 'custom' && this.selectedCover !== null) {
+                // Show interactive cover overlay in custom mode when cover is selected
                 coverContainer.classList.remove('hidden');
+                console.log('Cover container made visible for custom mode');
             }
         }
     }
@@ -3957,8 +3995,11 @@ class PDFComposerApp {
             if (transformInfo) {
                 transformInfo.style.display = 'none';
             }
-        } else {
-            // Show interactive cover controls for custom mode
+        } else if (newMode === 'custom') {
+            // Show interactive cover controls for custom mode only when cover is selected
+            if (coverContainer && this.selectedCover !== null) {
+                coverContainer.classList.remove('hidden');
+            }
             if (transformInfo) {
                 transformInfo.style.display = 'block';
             }
