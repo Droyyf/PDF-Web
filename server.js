@@ -52,12 +52,156 @@ const upload = multer({
     }
 });
 
+// File cleanup utilities
+class FileCleanupManager {
+    constructor() {
+        this.uploadedFiles = new Map(); // Track uploaded files with timestamps
+        this.composedFiles = new Map(); // Track composed files with timestamps
+        this.maxFileAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+        this.cleanupInterval = 60 * 60 * 1000; // Run cleanup every hour
+    }
+
+    // Track a newly uploaded file
+    trackUploadedFile(filename) {
+        this.uploadedFiles.set(filename, Date.now());
+        console.log(`Tracking uploaded file: ${filename}`);
+    }
+
+    // Track a newly composed file
+    trackComposedFile(filename) {
+        this.composedFiles.set(filename, Date.now());
+        console.log(`Tracking composed file: ${filename}`);
+    }
+
+    // Clean up files older than maxFileAge
+    async cleanupOldFiles() {
+        const now = Date.now();
+        const cutoffTime = now - this.maxFileAge;
+        
+        console.log('Starting automatic file cleanup...');
+        
+        // Clean uploaded files
+        for (const [filename, timestamp] of this.uploadedFiles.entries()) {
+            if (timestamp < cutoffTime) {
+                try {
+                    const filePath = path.join('uploads', filename);
+                    await fs.unlink(filePath).catch(() => {}); // Ignore if file doesn't exist
+                    this.uploadedFiles.delete(filename);
+                    console.log(`Cleaned up old uploaded file: ${filename}`);
+                } catch (error) {
+                    console.error(`Error cleaning uploaded file ${filename}:`, error);
+                }
+            }
+        }
+
+        // Clean composed files
+        for (const [filename, timestamp] of this.composedFiles.entries()) {
+            if (timestamp < cutoffTime) {
+                try {
+                    const filePath = path.join('temp', filename);
+                    await fs.unlink(filePath).catch(() => {}); // Ignore if file doesn't exist
+                    this.composedFiles.delete(filename);
+                    console.log(`Cleaned up old composed file: ${filename}`);
+                } catch (error) {
+                    console.error(`Error cleaning composed file ${filename}:`, error);
+                }
+            }
+        }
+
+        console.log(`Cleanup completed. Tracking ${this.uploadedFiles.size} uploads, ${this.composedFiles.size} composed files`);
+    }
+
+    // Clean up all temporary files (for shutdown)
+    async cleanupAllFiles() {
+        console.log('Performing complete file cleanup...');
+        
+        try {
+            // Clean uploads directory
+            const uploadFiles = await fs.readdir('uploads').catch(() => []);
+            for (const file of uploadFiles) {
+                if (file.endsWith('.pdf')) {
+                    await fs.unlink(path.join('uploads', file)).catch(() => {});
+                    console.log(`Cleaned up upload file: ${file}`);
+                }
+            }
+
+            // Clean temp directory
+            const tempFiles = await fs.readdir('temp').catch(() => []);
+            for (const file of tempFiles) {
+                if (file.endsWith('.pdf')) {
+                    await fs.unlink(path.join('temp', file)).catch(() => {});
+                    console.log(`Cleaned up temp file: ${file}`);
+                }
+            }
+
+            // Clear tracking maps
+            this.uploadedFiles.clear();
+            this.composedFiles.clear();
+            
+            console.log('Complete cleanup finished');
+        } catch (error) {
+            console.error('Error during complete cleanup:', error);
+        }
+    }
+
+    // Start automatic cleanup interval
+    startAutoCleanup() {
+        console.log(`Starting automatic cleanup every ${this.cleanupInterval / 1000 / 60} minutes`);
+        setInterval(() => {
+            this.cleanupOldFiles();
+        }, this.cleanupInterval);
+
+        // Run initial cleanup
+        setTimeout(() => this.cleanupOldFiles(), 5000); // Wait 5 seconds after startup
+    }
+
+    // Initialize existing files tracking (for server restarts)
+    async initializeExistingFiles() {
+        try {
+            // Track existing uploaded files
+            const uploadFiles = await fs.readdir('uploads').catch(() => []);
+            for (const file of uploadFiles) {
+                if (file.endsWith('.pdf')) {
+                    const filePath = path.join('uploads', file);
+                    const stats = await fs.stat(filePath).catch(() => null);
+                    if (stats) {
+                        this.uploadedFiles.set(file, stats.birthtime.getTime());
+                    }
+                }
+            }
+
+            // Track existing composed files
+            const tempFiles = await fs.readdir('temp').catch(() => []);
+            for (const file of tempFiles) {
+                if (file.endsWith('.pdf')) {
+                    const filePath = path.join('temp', file);
+                    const stats = await fs.stat(filePath).catch(() => null);
+                    if (stats) {
+                        this.composedFiles.set(file, stats.birthtime.getTime());
+                    }
+                }
+            }
+
+            console.log(`Initialized tracking: ${this.uploadedFiles.size} uploads, ${this.composedFiles.size} composed files`);
+        } catch (error) {
+            console.error('Error initializing existing files:', error);
+        }
+    }
+}
+
+// Create global cleanup manager instance
+const fileCleanup = new FileCleanupManager();
+
 // Create uploads directory if it doesn't exist
 const initDirectories = async () => {
     try {
         await fs.mkdir('uploads', { recursive: true });
         await fs.mkdir('temp', { recursive: true });
         console.log('Directories initialized');
+        
+        // Initialize file tracking and start cleanup
+        await fileCleanup.initializeExistingFiles();
+        fileCleanup.startAutoCleanup();
     } catch (error) {
         console.error('Error creating directories:', error);
     }
@@ -199,6 +343,9 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
         const pdfData = await pdfService.loadPDF(req.file.path);
         const thumbnails = await pdfService.generateThumbnails(req.file.path, pdfData.pageCount);
 
+        // Track the uploaded file for automatic cleanup
+        fileCleanup.trackUploadedFile(req.file.filename);
+
         res.json({
             success: true,
             fileId: req.file.filename,
@@ -261,6 +408,9 @@ app.post('/api/compose', async (req, res) => {
         
         await fs.writeFile(outputPath, composedPdfBytes);
         
+        // Track the composed file for automatic cleanup
+        fileCleanup.trackComposedFile(outputFilename);
+        
         res.json({
             success: true,
             downloadUrl: `/api/download/${outputFilename}`,
@@ -310,13 +460,43 @@ app.use((error, req, res, next) => {
     res.status(500).json({ error: 'Internal server error' });
 });
 
+// Graceful shutdown handler
+const gracefulShutdown = async (signal) => {
+    console.log(`\nReceived ${signal}, shutting down gracefully...`);
+    
+    try {
+        // Clean up all temporary files
+        await fileCleanup.cleanupAllFiles();
+        console.log('Server shutdown complete');
+        process.exit(0);
+    } catch (error) {
+        console.error('Error during shutdown:', error);
+        process.exit(1);
+    }
+};
+
+// Register shutdown handlers
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // nodemon restart
+
 // Start server
 const startServer = async () => {
     await initDirectories();
     
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         console.log(`PDF Composer Web Server running on port ${PORT}`);
         console.log(`Access the application at http://localhost:${PORT}`);
+        console.log('Automatic file cleanup enabled:');
+        console.log(`- Files older than 24 hours will be cleaned up automatically`);
+        console.log(`- Cleanup runs every 60 minutes`);
+        console.log(`- All files will be cleaned on server shutdown`);
+    });
+
+    // Handle server errors
+    server.on('error', (error) => {
+        console.error('Server error:', error);
+        gracefulShutdown('SERVER_ERROR');
     });
 };
 
