@@ -3264,13 +3264,12 @@ class PDFComposerApp {
             canvas.height = canvasHeight;
             canvas.style.display = 'block';
             
-            // Add small padding for clean aesthetic - 7.5% extension around image
-            const paddingX = Math.round(canvasWidth * 0.075);
-            const paddingY = Math.round(canvasHeight * 0.075);
+            // Add minimal padding for clean aesthetic - much smaller fixed padding
+            const padding = 15; // Small fixed padding instead of percentage
             
-            // Apply dynamic padding to make existing border/shadow wrap tightly around image
+            // Apply minimal padding to make existing border/shadow wrap tightly around image
             container.style.background = 'transparent';
-            container.style.padding = `${paddingY}px ${paddingX}px`;
+            container.style.padding = `${padding}px`;
             
             // Hide placeholder
             const placeholder = container.querySelector('.preview-placeholder');
