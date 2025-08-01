@@ -1391,7 +1391,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: calc(100vh - 200px);
-    max-height: calc(100vh - 100px);
+    height: auto;
     overflow: hidden;
     transition: all var(--transition-smooth);
 }
@@ -1577,7 +1577,7 @@ body {
     position: relative;
     flex: 1;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     overflow: auto;
     min-height: 400px;

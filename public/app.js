@@ -3234,17 +3234,16 @@ class PDFComposerApp {
             // Calculate canvas size - use optimal dimensions for readability
             const aspectRatio = viewport.width / viewport.height;
             
-            // Calculate canvas size to show full citation without cropping
+            // Calculate canvas size for optimal readability 
             const containerRect = container.getBoundingClientRect();
             const availableWidth = containerRect.width - 40; // Leave some padding
             
-            // Start with a reasonable scale that fits width
-            let canvasWidth = Math.min(availableWidth, viewport.width * 1.2);
+            // Use a larger scale for better readability - prioritize size over fitting in viewport
+            let canvasWidth = Math.min(availableWidth, viewport.width * 2.0); // Increased from 1.2 to 2.0
             let canvasHeight = canvasWidth / aspectRatio;
             
-            // For citations, prioritize showing the full content over fitting in viewport
-            // Only constrain if the result would be excessively large
-            const maxReasonableHeight = window.innerHeight * 0.8;
+            // Allow reasonable large sizes - only constrain if truly excessive
+            const maxReasonableHeight = window.innerHeight * 1.2; // Increased from 0.8 to 1.2
             if (canvasHeight > maxReasonableHeight) {
                 canvasHeight = maxReasonableHeight;
                 canvasWidth = canvasHeight * aspectRatio;
