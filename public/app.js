@@ -2501,43 +2501,32 @@ class PDFComposerApp {
             // Get first page
             const page = await this.currentPDF.getPage(1);
             
-            // Use the EXACT same approach as successful thumbnail generation
-            // Get viewport at scale 1 to get true dimensions
-            const viewport = page.getViewport({ scale: 1 });
-            console.log(`Original PDF page dimensions: ${viewport.width} x ${viewport.height}`);
+            // FORCE a very small scale to ensure full page visibility
+            const fixedScale = 0.08; // Very small scale = full page guaranteed
+            const viewport = page.getViewport({ scale: fixedScale });
             
-            // Calculate scale to fit in 64px thumbnail (same as thumbnail logic)
-            const targetSize = 64;
-            const scale = Math.min(targetSize / viewport.width, targetSize / viewport.height);
-            console.log(`Calculated scale: ${scale}`);
+            console.log(`FIXED SCALE APPROACH:`);
+            console.log(`Scale: ${fixedScale}`);
+            console.log(`Viewport: ${viewport.width} x ${viewport.height}`);
             
-            // Create scaled viewport
-            const scaledViewport = page.getViewport({ scale: scale });
-            console.log(`Scaled dimensions: ${scaledViewport.width} x ${scaledViewport.height}`);
-            
-            // Set canvas to scaled size
-            canvas.width = Math.round(scaledViewport.width);
-            canvas.height = Math.round(scaledViewport.height);
+            // Set canvas to exactly the viewport size
+            canvas.width = Math.round(viewport.width);
+            canvas.height = Math.round(viewport.height);
             canvas.style.width = canvas.width + 'px';
             canvas.style.height = canvas.height + 'px';
             
-            // Get context and render with proper settings
+            // Get context and clear
             const context = canvas.getContext('2d');
-            
-            // Set canvas background to white for better contrast
             context.fillStyle = 'white';
             context.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Render using the scaled viewport with enhanced settings
+            // Render with fixed small scale
             await page.render({
                 canvasContext: context,
-                viewport: scaledViewport,
-                intent: 'display', // Optimize for display
-                renderInteractiveForms: false,
-                annotationMode: 0 // Disable annotations for cleaner render
+                viewport: viewport
             }).promise;
             
-            console.log(`Loading icon rendered: ${canvas.width}x${canvas.height}px with scale ${scale}`);
+            console.log(`SUCCESS: Rendered at fixed scale ${fixedScale}, size: ${canvas.width}x${canvas.height}`);
             
         } catch (error) {
             console.error('Failed to render loading icon:', error);
