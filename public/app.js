@@ -2493,56 +2493,71 @@ class PDFComposerApp {
         if (!this.currentPDF) return;
         
         try {
-            console.log('Updating loading icon with first page...');
+            console.log('Rendering first page for loading icon...');
             const canvas = document.getElementById('loadingPreviewCanvas');
             if (!canvas) return;
             
             // Get first page
             const page = await this.currentPDF.getPage(1);
-            const viewport = page.getViewport({ scale: 1 });
             
-            // Calculate scale to fit within 64px container while maintaining aspect ratio
-            const targetSize = 64;
-            const scale = Math.min(targetSize / viewport.width, targetSize / viewport.height);
+            // Set canvas to fixed 64x64 size
+            canvas.width = 64;
+            canvas.height = 64;
+            canvas.style.width = '64px';
+            canvas.style.height = '64px';
             
-            // Create a new viewport with the calculated scale
-            const finalViewport = page.getViewport({ scale: scale });
-            
-            // Set canvas size exactly to the scaled dimensions (no device pixel ratio complications)
-            canvas.width = Math.floor(finalViewport.width);
-            canvas.height = Math.floor(finalViewport.height);
-            
-            // Set CSS size to match canvas size
-            canvas.style.width = canvas.width + 'px';
-            canvas.style.height = canvas.height + 'px';
-            
-            // Clear canvas and set white background
+            // Get context and clear canvas
             const context = canvas.getContext('2d');
             context.fillStyle = 'white';
-            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.fillRect(0, 0, 64, 64);
             
-            // Render the page
+            // Get page dimensions at scale 1
+            const viewport = page.getViewport({ scale: 1 });
+            
+            // Calculate scale to fit the page into 64x64 while maintaining aspect ratio
+            const scale = Math.min(64 / viewport.width, 64 / viewport.height);
+            
+            // Calculate the scaled dimensions
+            const scaledWidth = viewport.width * scale;
+            const scaledHeight = viewport.height * scale;
+            
+            // Center the page in the 64x64 canvas
+            const offsetX = (64 - scaledWidth) / 2;
+            const offsetY = (64 - scaledHeight) / 2;
+            
+            // Create a temporary canvas for rendering the full page
+            const tempCanvas = document.createElement('canvas');
+            const tempContext = tempCanvas.getContext('2d');
+            const scaledViewport = page.getViewport({ scale });
+            
+            tempCanvas.width = scaledViewport.width;
+            tempCanvas.height = scaledViewport.height;
+            
+            // Render page to temp canvas
             await page.render({
-                canvasContext: context,
-                viewport: finalViewport
+                canvasContext: tempContext,
+                viewport: scaledViewport
             }).promise;
             
-            console.log(`Loading icon updated: ${canvas.width}x${canvas.height}px (scale: ${scale.toFixed(3)})`);
+            // Draw the temp canvas onto the final canvas, centered
+            context.drawImage(tempCanvas, offsetX, offsetY);
+            
+            console.log(`Loading icon ready: 64x64px with page scaled to ${scaledWidth.toFixed(1)}x${scaledHeight.toFixed(1)}px`);
             
         } catch (error) {
-            console.error('Failed to update loading icon with first page:', error);
-            // On error, show a fallback
+            console.error('Failed to render loading icon:', error);
+            // Simple fallback
             const canvas = document.getElementById('loadingPreviewCanvas');
             if (canvas) {
-                const context = canvas.getContext('2d');
                 canvas.width = 64;
                 canvas.height = 64;
                 canvas.style.width = '64px';
                 canvas.style.height = '64px';
-                context.fillStyle = '#333';
+                const context = canvas.getContext('2d');
+                context.fillStyle = '#444';
                 context.fillRect(0, 0, 64, 64);
                 context.fillStyle = 'white';
-                context.font = '40px serif';
+                context.font = '32px Arial';
                 context.textAlign = 'center';
                 context.fillText('📄', 32, 40);
             }
