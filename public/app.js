@@ -2501,23 +2501,33 @@ class PDFComposerApp {
             const page = await this.currentPDF.getPage(1);
             const viewport = page.getViewport({ scale: 1 });
             
-            // Calculate scale to fit ~64px (good loading preview size)
+            // Calculate scale to fit within 64px container while maintaining aspect ratio
             const targetSize = 64;
             const scale = Math.min(targetSize / viewport.width, targetSize / viewport.height);
             const scaledViewport = page.getViewport({ scale });
             
-            // Set up canvas
-            const context = canvas.getContext('2d');
-            canvas.width = scaledViewport.width;
-            canvas.height = scaledViewport.height;
+            // Get device pixel ratio for crisp rendering
+            const devicePixelRatio = window.devicePixelRatio || 1;
             
-            // Render first page
+            // Set canvas internal size (for rendering)
+            canvas.width = scaledViewport.width * devicePixelRatio;
+            canvas.height = scaledViewport.height * devicePixelRatio;
+            
+            // Set canvas display size (CSS)
+            canvas.style.width = scaledViewport.width + 'px';
+            canvas.style.height = scaledViewport.height + 'px';
+            
+            // Scale the drawing context to account for device pixel ratio
+            const context = canvas.getContext('2d');
+            context.scale(devicePixelRatio, devicePixelRatio);
+            
+            // Render first page with proper viewport
             await page.render({
                 canvasContext: context,
                 viewport: scaledViewport
             }).promise;
             
-            console.log('Loading icon updated with first page');
+            console.log(`Loading icon updated with first page: ${scaledViewport.width}x${scaledViewport.height}px`);
             
         } catch (error) {
             console.error('Failed to update loading icon with first page:', error);

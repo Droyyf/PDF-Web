@@ -726,6 +726,8 @@ body {
     display: block;
     max-width: 64px;
     max-height: 64px;
+    object-fit: contain;
+    image-rendering: crisp-edges;
 }
 
 @keyframes pulse {
