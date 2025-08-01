@@ -2460,6 +2460,11 @@ class PDFComposerApp {
         document.getElementById('emptyState').classList.remove('hidden');
         document.getElementById('pdfViewer').classList.add('hidden');
         document.getElementById('loadingState').classList.add('hidden');
+        
+        // Remove loading class to re-enable transitions
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) appContainer.classList.remove('loading');
+        
         this.updateTechnicalInfo('PDF VIEWER IDLE // WAITING FOR INPUT');
         
         // Clear any running progress intervals
@@ -2473,6 +2478,11 @@ class PDFComposerApp {
         document.getElementById('emptyState').classList.add('hidden');
         document.getElementById('pdfViewer').classList.add('hidden');
         document.getElementById('loadingState').classList.remove('hidden');
+        
+        // Add loading class to disable transitions and prevent flashing
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) appContainer.classList.add('loading');
+        
         this.updateTechnicalInfo('LOADING PDF DOCUMENT...');
         
         // Initialize progress at 0%
@@ -2520,11 +2530,17 @@ class PDFComposerApp {
         document.getElementById('loadingState').classList.add('hidden');
         document.getElementById('pdfViewer').classList.remove('hidden');
         
+        // Remove loading class to re-enable transitions
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) appContainer.classList.remove('loading');
+        
         // Ensure preview panel is visible
         const previewPanel = document.getElementById('previewPanel');
         if (previewPanel) {
             previewPanel.classList.remove('hidden');
         }
+        
+        this.updateTechnicalInfo('PDF LOADED // READY FOR COMPOSITION');
     }
 
     updateProgress(percentage, message = '') {

@@ -674,6 +674,27 @@ body {
     -webkit-backdrop-filter: blur(10px);
 }
 
+/* Disable all transitions during loading to prevent flashing */
+.app-container.loading * {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* Only allow loading animations during loading state */
+.app-container.loading .loading-icon,
+.app-container.loading .loading-icon canvas {
+    animation: loadingPulse 2s infinite !important;
+}
+
+/* Ensure preview panel and header are stable during loading */
+.app-container.loading .app-header,
+.app-container.loading .preview-panel,
+.app-container.loading .preview-content,
+.app-container.loading .preview-viewport {
+    transform: none !important;
+    opacity: 1 !important;
+}
+
 .loading-content {
     text-align: center;
     padding: var(--space-2xl);
