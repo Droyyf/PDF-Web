@@ -3239,21 +3239,14 @@ class PDFComposerApp {
             const availableWidth = containerRect.width - 60; // Leave some padding
             const availableHeight = window.innerHeight - 300; // Account for header and controls
             
-            // Use a more reasonable scale that fits content better
-            let targetWidth = Math.min(availableWidth * 0.6, viewport.width * 1.5); // Reduced scale
+            // Make canvas much smaller to fit content tightly
+            let targetWidth = Math.min(400, viewport.width * 0.8); // Much smaller, fixed max
             let targetHeight = targetWidth / aspectRatio;
             
-            // If height is too large, scale by height instead
-            if (targetHeight > availableHeight) {
-                targetHeight = availableHeight;
+            // Keep it readable but compact
+            if (targetHeight > 600) {
+                targetHeight = 600;
                 targetWidth = targetHeight * aspectRatio;
-            }
-            
-            // Ensure minimum readable size but smaller than before
-            const minWidth = 300;
-            if (targetWidth < minWidth) {
-                targetWidth = minWidth;
-                targetHeight = targetWidth / aspectRatio;
             }
             
             let canvasWidth = targetWidth;
