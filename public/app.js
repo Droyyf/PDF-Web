@@ -3264,8 +3264,13 @@ class PDFComposerApp {
             canvas.height = canvasHeight;
             canvas.style.display = 'block';
             
-            // Let CSS handle container sizing with fit-content and padding
+            // Add padding that's 7.5% of the image dimensions for perfect border extension
+            const paddingX = Math.round(canvasWidth * 0.075);
+            const paddingY = Math.round(canvasHeight * 0.075);
+            
+            // Let CSS handle container sizing with calculated padding for border extension
             container.style.background = 'transparent';
+            container.style.padding = `${paddingY}px ${paddingX}px`;
             
             // Hide placeholder
             const placeholder = container.querySelector('.preview-placeholder');
