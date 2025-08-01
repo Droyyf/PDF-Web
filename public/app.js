@@ -440,7 +440,8 @@ class PDFComposerApp {
     }
     
     startHeartbeat() {
-        if (this.heartbeatInterval) return;
+        // Only start heartbeat during processing to avoid UI flashing
+        if (this.heartbeatInterval || !this.isProcessing) return;
         
         this.heartbeatInterval = setInterval(() => {
             const now = Date.now();
@@ -456,7 +457,7 @@ class PDFComposerApp {
             
             this.lastHeartbeat = now;
             
-            // Update title to show we're still alive
+            // Update title to show we're still alive (only when processing)
             if (this.isProcessing && document.visibilityState === 'hidden') {
                 const elapsed = Math.floor((Date.now() - this.processingStartTime) / 1000);
                 document.title = `PDF Composer - Processing... (${elapsed}s)`;
@@ -543,10 +544,10 @@ class PDFComposerApp {
     }
 
     async startBackgroundKeepAlive() {
-        // Simplified keep-alive - just update title periodically
-        if (!this.keepAliveInterval) {
+        // Only start keep-alive during processing to avoid UI flashing
+        if (!this.keepAliveInterval && this.isProcessing) {
             this.keepAliveInterval = setInterval(() => {
-                // Update title with current time to show activity
+                // Update title with current time to show activity (only when processing)
                 if (this.isProcessing) {
                     const elapsed = Math.floor((Date.now() - this.processingStartTime) / 1000);
                     document.title = `PDF Composer - Processing... (${elapsed}s)`;

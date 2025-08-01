@@ -689,6 +689,18 @@ body {
     animation: loadingPulse 2s infinite !important;
 }
 
+/* Disable problematic animations during normal operation to prevent flashing */
+.app-container:not(.loading) .status-indicator {
+    animation: none !important;
+}
+
+/* Reduce overall animation activity to prevent UI flashing */
+.preview-panel,
+.preview-content,
+.preview-viewport {
+    animation: none !important;
+}
+
 /* Force static positioning and visibility for critical elements during loading */
 .app-container.loading .app-header,
 .app-container.loading .preview-panel,
@@ -1419,7 +1431,7 @@ body {
     height: 8px;
     border-radius: 50%;
     background: var(--accent-primary);
-    animation: pulse 2s infinite;
+    /* Removed infinite pulse animation to prevent UI flashing */
 }
 
 .status-text {
