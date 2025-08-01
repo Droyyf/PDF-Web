@@ -1390,8 +1390,8 @@ body {
     border: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 200px);
-    max-height: 800px;
+    min-height: calc(100vh - 200px);
+    max-height: calc(100vh - 100px);
     overflow: hidden;
     transition: all var(--transition-smooth);
 }
@@ -1575,22 +1575,24 @@ body {
 
 .preview-viewport {
     position: relative;
-    height: 100%;
-    max-height: 500px;
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: auto;
+    min-height: 400px;
+    padding: 20px;
 }
 
 .preview-canvas-container {
     position: relative;
-    background: #fff;
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
     overflow: hidden;
-    max-width: 100%;
-    max-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
 }
 
 #previewCanvas {
@@ -1671,7 +1673,7 @@ body {
     width: 100%;
     height: auto;
     display: block;
-    background: #fff;
+    background: transparent;
 }
 
 .controls-panel {

@@ -3233,26 +3233,38 @@ class PDFComposerApp {
             
             // Calculate canvas size - use optimal dimensions for readability
             const aspectRatio = viewport.width / viewport.height;
-            const maxWidth = Math.min(1000, window.innerWidth - 300); // Leave space for sidebar
-            const maxHeight = Math.min(800, window.innerHeight - 200); // Leave space for controls
             
-            let canvasWidth = maxWidth;
+            // Calculate canvas size to show full citation without cropping
+            const containerRect = container.getBoundingClientRect();
+            const availableWidth = containerRect.width - 40; // Leave some padding
+            
+            // Start with a reasonable scale that fits width
+            let canvasWidth = Math.min(availableWidth, viewport.width * 1.2);
             let canvasHeight = canvasWidth / aspectRatio;
             
-            if (canvasHeight > maxHeight) {
-                canvasHeight = maxHeight;
+            // For citations, prioritize showing the full content over fitting in viewport
+            // Only constrain if the result would be excessively large
+            const maxReasonableHeight = window.innerHeight * 0.8;
+            if (canvasHeight > maxReasonableHeight) {
+                canvasHeight = maxReasonableHeight;
                 canvasWidth = canvasHeight * aspectRatio;
             }
             
+            // Set canvas dimensions
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
             canvas.style.display = 'block';
+            
+            // Make canvas container fit content exactly (no white padding)
+            container.style.width = canvasWidth + 'px';
+            container.style.height = canvasHeight + 'px';
+            container.style.background = 'transparent';
             
             // Hide placeholder
             const placeholder = container.querySelector('.preview-placeholder');
             if (placeholder) placeholder.style.display = 'none';
             
-            // Clear canvas
+            // Clear canvas with white background
             context.fillStyle = '#ffffff';
             context.fillRect(0, 0, canvasWidth, canvasHeight);
             
