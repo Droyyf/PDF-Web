@@ -675,9 +675,12 @@ body {
 }
 
 /* Disable all transitions during loading to prevent flashing */
-.app-container.loading * {
+.app-container.loading *,
+.app-container.loading *::before,
+.app-container.loading *::after {
     transition: none !important;
     animation: none !important;
+    transform: none !important;
 }
 
 /* Only allow loading animations during loading state */
@@ -686,13 +689,23 @@ body {
     animation: loadingPulse 2s infinite !important;
 }
 
-/* Ensure preview panel and header are stable during loading */
+/* Force static positioning and visibility for critical elements during loading */
 .app-container.loading .app-header,
 .app-container.loading .preview-panel,
 .app-container.loading .preview-content,
-.app-container.loading .preview-viewport {
+.app-container.loading .preview-viewport,
+.app-container.loading .thumbnail-panel {
     transform: none !important;
     opacity: 1 !important;
+    visibility: visible !important;
+    position: static !important;
+}
+
+/* Prevent any backdrop filters or effects during loading */
+.app-container.loading .preview-panel,
+.app-container.loading .thumbnail-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
 }
 
 .loading-content {

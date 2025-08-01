@@ -675,6 +675,10 @@ class PDFComposerApp {
             return;
         }
 
+        // Add loading class IMMEDIATELY to prevent any flashing
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) appContainer.classList.add('loading');
+
         // Load PDF client-side first to prepare the first page icon
         try {
             const fileReader = new FileReader();
@@ -2479,10 +2483,6 @@ class PDFComposerApp {
         document.getElementById('pdfViewer').classList.add('hidden');
         document.getElementById('loadingState').classList.remove('hidden');
         
-        // Add loading class to disable transitions and prevent flashing
-        const appContainer = document.querySelector('.app-container');
-        if (appContainer) appContainer.classList.add('loading');
-        
         this.updateTechnicalInfo('LOADING PDF DOCUMENT...');
         
         // Initialize progress at 0%
@@ -2504,34 +2504,48 @@ class PDFComposerApp {
             // Calculate scale to fit within 64px container while maintaining aspect ratio
             const targetSize = 64;
             const scale = Math.min(targetSize / viewport.width, targetSize / viewport.height);
-            const scaledViewport = page.getViewport({ scale });
             
-            // Get device pixel ratio for crisp rendering
-            const devicePixelRatio = window.devicePixelRatio || 1;
+            // Create a new viewport with the calculated scale
+            const finalViewport = page.getViewport({ scale: scale });
             
-            // Set canvas internal size (for rendering)
-            canvas.width = scaledViewport.width * devicePixelRatio;
-            canvas.height = scaledViewport.height * devicePixelRatio;
+            // Set canvas size exactly to the scaled dimensions (no device pixel ratio complications)
+            canvas.width = Math.floor(finalViewport.width);
+            canvas.height = Math.floor(finalViewport.height);
             
-            // Set canvas display size (CSS)
-            canvas.style.width = scaledViewport.width + 'px';
-            canvas.style.height = scaledViewport.height + 'px';
+            // Set CSS size to match canvas size
+            canvas.style.width = canvas.width + 'px';
+            canvas.style.height = canvas.height + 'px';
             
-            // Scale the drawing context to account for device pixel ratio
+            // Clear canvas and set white background
             const context = canvas.getContext('2d');
-            context.scale(devicePixelRatio, devicePixelRatio);
+            context.fillStyle = 'white';
+            context.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Render first page with proper viewport
+            // Render the page
             await page.render({
                 canvasContext: context,
-                viewport: scaledViewport
+                viewport: finalViewport
             }).promise;
             
-            console.log(`Loading icon updated with first page: ${scaledViewport.width}x${scaledViewport.height}px`);
+            console.log(`Loading icon updated: ${canvas.width}x${canvas.height}px (scale: ${scale.toFixed(3)})`);
             
         } catch (error) {
             console.error('Failed to update loading icon with first page:', error);
-            // Keep default icon on error
+            // On error, show a fallback
+            const canvas = document.getElementById('loadingPreviewCanvas');
+            if (canvas) {
+                const context = canvas.getContext('2d');
+                canvas.width = 64;
+                canvas.height = 64;
+                canvas.style.width = '64px';
+                canvas.style.height = '64px';
+                context.fillStyle = '#333';
+                context.fillRect(0, 0, 64, 64);
+                context.fillStyle = 'white';
+                context.font = '40px serif';
+                context.textAlign = 'center';
+                context.fillText('📄', 32, 40);
+            }
         }
     }
 
