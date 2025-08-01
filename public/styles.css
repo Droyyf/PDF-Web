@@ -1592,9 +1592,9 @@ body {
     overflow: hidden;
     display: inline-block;
     background: transparent;
-    max-width: none;
-    width: auto;
-    height: auto;
+    padding: 8px;
+    width: fit-content;
+    height: fit-content;
 }
 
 #previewCanvas {

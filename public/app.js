@@ -3264,9 +3264,7 @@ class PDFComposerApp {
             canvas.height = canvasHeight;
             canvas.style.display = 'block';
             
-            // Make canvas container fit content exactly (no white padding)
-            container.style.width = canvasWidth + 'px';
-            container.style.height = canvasHeight + 'px';
+            // Let CSS handle container sizing with fit-content and padding
             container.style.background = 'transparent';
             
             // Hide placeholder
