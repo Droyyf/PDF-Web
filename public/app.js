@@ -2500,31 +2500,40 @@ class PDFComposerApp {
             
             // Get first page
             const page = await this.currentPDF.getPage(1);
+            
+            // Use the EXACT same approach as successful thumbnail generation
+            // Get viewport at scale 1 to get true dimensions
             const viewport = page.getViewport({ scale: 1 });
+            console.log(`Original PDF page dimensions: ${viewport.width} x ${viewport.height}`);
             
-            // Calculate scale to fit within max 64px while maintaining aspect ratio
-            const maxSize = 64;
-            const scale = Math.min(maxSize / viewport.width, maxSize / viewport.height);
-            const scaledViewport = page.getViewport({ scale });
+            // Calculate scale to fit in 64px thumbnail (same as thumbnail logic)
+            const targetSize = 64;
+            const scale = Math.min(targetSize / viewport.width, targetSize / viewport.height);
+            console.log(`Calculated scale: ${scale}`);
             
-            // Set canvas to exact scaled size (no white padding)
+            // Create scaled viewport
+            const scaledViewport = page.getViewport({ scale: scale });
+            console.log(`Scaled dimensions: ${scaledViewport.width} x ${scaledViewport.height}`);
+            
+            // Set canvas to scaled size
             canvas.width = Math.round(scaledViewport.width);
             canvas.height = Math.round(scaledViewport.height);
             canvas.style.width = canvas.width + 'px';
             canvas.style.height = canvas.height + 'px';
             
-            // Render page directly to canvas (no background, no centering)
+            // Get context and render
             const context = canvas.getContext('2d');
+            
+            // Render using the scaled viewport (this should show full page)
             await page.render({
                 canvasContext: context,
                 viewport: scaledViewport
             }).promise;
             
-            console.log(`Loading icon ready: ${canvas.width}x${canvas.height}px (no padding)`);
+            console.log(`Loading icon rendered: ${canvas.width}x${canvas.height}px with scale ${scale}`);
             
         } catch (error) {
             console.error('Failed to render loading icon:', error);
-            // Simple fallback
             const canvas = document.getElementById('loadingPreviewCanvas');
             if (canvas) {
                 canvas.width = 48;
@@ -2532,10 +2541,10 @@ class PDFComposerApp {
                 canvas.style.width = '48px';
                 canvas.style.height = '48px';
                 const context = canvas.getContext('2d');
-                context.fillStyle = '#444';
+                context.fillStyle = '#333';
                 context.fillRect(0, 0, 48, 48);
                 context.fillStyle = 'white';
-                context.font = '28px Arial';
+                context.font = '20px Arial';
                 context.textAlign = 'center';
                 context.fillText('📄', 24, 30);
             }
