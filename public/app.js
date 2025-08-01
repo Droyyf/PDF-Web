@@ -17,6 +17,7 @@ class PDFComposerApp {
         this.currentTaskId = null;
         this.workerSupported = typeof Worker !== 'undefined';
         this.pdfArrayBuffer = null; // Store PDF data for worker processing
+        this.loadingIconInProgress = false; // Prevent concurrent loading icon renders
         
         // Cover transform state
         this.coverTransform = {
@@ -793,7 +794,7 @@ class PDFComposerApp {
             console.log('PDF document loaded successfully:', this.currentPDF.numPages, 'pages');
             
             // Update loading icon with first page
-            this.updateLoadingIconWithFirstPage();
+            await this.updateLoadingIconWithFirstPage();
             
             // Verify page count matches
             if (this.totalPages !== this.currentPDF.numPages) {
@@ -2491,59 +2492,76 @@ class PDFComposerApp {
     }
     
     async updateLoadingIconWithFirstPage() {
-        if (!this.currentPDF) return;
+        // Prevent multiple concurrent calls
+        if (this.loadingIconInProgress) {
+            console.log('🔄 Loading icon already in progress, skipping...');
+            return;
+        }
+        
+        console.log('🔄 Starting loading icon update...');
+        
+        if (!this.currentPDF) {
+            console.log('❌ No currentPDF available for loading icon');
+            return;
+        }
+        
+        const canvas = document.getElementById('loadingPreviewCanvas');
+        if (!canvas) {
+            console.log('❌ Loading canvas not found');
+            return;
+        }
+        
+        this.loadingIconInProgress = true;
         
         try {
-            console.log('Rendering first page for loading icon...');
-            const canvas = document.getElementById('loadingPreviewCanvas');
-            if (!canvas) return;
+            console.log('🔄 Getting first page for loading icon...');
             
-            // Get first page
+            // Use the existing PDF instance instead of creating a new one
             const page = await this.currentPDF.getPage(1);
             
-            // FORCE a very small scale to ensure full page visibility
-            const fixedScale = 0.08; // Very small scale = full page guaranteed
-            const viewport = page.getViewport({ scale: fixedScale });
+            // Get original viewport dimensions at scale 1.0
+            const originalViewport = page.getViewport({ scale: 1.0 });
+            console.log('📄 Original page dimensions:', originalViewport.width, 'x', originalViewport.height);
             
-            console.log(`FIXED SCALE APPROACH:`);
-            console.log(`Scale: ${fixedScale}`);
-            console.log(`Viewport: ${viewport.width} x ${viewport.height}`);
+            // Calculate scale to fit entire page in icon size
+            const targetSize = 50;
+            const scaleX = targetSize / originalViewport.width;
+            const scaleY = targetSize / originalViewport.height;
+            const scale = Math.min(scaleX, scaleY);
             
-            // Set canvas to exactly the viewport size
-            canvas.width = Math.round(viewport.width);
-            canvas.height = Math.round(viewport.height);
-            canvas.style.width = canvas.width + 'px';
-            canvas.style.height = canvas.height + 'px';
+            console.log('🔧 Calculated scale for loading icon:', scale);
             
-            // Get context and clear
+            // Create viewport with calculated scale
+            const viewport = page.getViewport({ scale });
+            
+            // Set canvas size to match scaled viewport exactly
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            canvas.style.width = targetSize + 'px';
+            canvas.style.height = targetSize + 'px';
+            
+            console.log('🖼️ Canvas dimensions set to:', canvas.width, 'x', canvas.height, 'display:', targetSize + 'px');
+            
+            // Render the page
             const context = canvas.getContext('2d');
-            context.fillStyle = 'white';
+            
+            // Set white background first to ensure visibility
+            context.fillStyle = '#ffffff';
             context.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Render with fixed small scale
+            console.log('🎨 Starting page render for loading icon...');
+            
             await page.render({
                 canvasContext: context,
                 viewport: viewport
             }).promise;
             
-            console.log(`SUCCESS: Rendered at fixed scale ${fixedScale}, size: ${canvas.width}x${canvas.height}`);
+            console.log('✅ Loading icon rendered successfully');
             
         } catch (error) {
-            console.error('Failed to render loading icon:', error);
-            const canvas = document.getElementById('loadingPreviewCanvas');
-            if (canvas) {
-                canvas.width = 48;
-                canvas.height = 48;
-                canvas.style.width = '48px';
-                canvas.style.height = '48px';
-                const context = canvas.getContext('2d');
-                context.fillStyle = '#333';
-                context.fillRect(0, 0, 48, 48);
-                context.fillStyle = 'white';
-                context.font = '20px Arial';
-                context.textAlign = 'center';
-                context.fillText('📄', 24, 30);
-            }
+            console.error('❌ Loading icon error:', error);
+        } finally {
+            this.loadingIconInProgress = false;
         }
     }
 
