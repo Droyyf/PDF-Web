@@ -1580,9 +1580,9 @@ body {
     align-items: center;
     justify-content: center;
     overflow: auto;
-    min-height: 500px;
-    padding: 30px;
-    max-height: calc(100vh - 250px);
+    min-height: 200px;
+    padding: 10px;
+    max-height: calc(100vh - 200px);
 }
 
 .preview-canvas-container {
@@ -1592,7 +1592,7 @@ body {
     overflow: hidden;
     display: inline-block;
     background: transparent;
-    padding: 8px;
+    padding: 12px;
     width: fit-content !important;
     height: fit-content !important;
     max-width: none !important;
