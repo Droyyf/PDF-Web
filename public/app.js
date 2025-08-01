@@ -3234,20 +3234,30 @@ class PDFComposerApp {
             // Calculate canvas size - use optimal dimensions for readability
             const aspectRatio = viewport.width / viewport.height;
             
-            // Calculate canvas size for optimal readability 
+            // Calculate canvas size for optimal readability - make it much larger
             const containerRect = container.getBoundingClientRect();
-            const availableWidth = containerRect.width - 40; // Leave some padding
+            const availableWidth = containerRect.width - 60; // Leave some padding
+            const availableHeight = window.innerHeight - 300; // Account for header and controls
             
-            // Use a larger scale for better readability - prioritize size over fitting in viewport
-            let canvasWidth = Math.min(availableWidth, viewport.width * 2.0); // Increased from 1.2 to 2.0
-            let canvasHeight = canvasWidth / aspectRatio;
+            // Start with a much larger scale for excellent readability
+            let targetWidth = Math.min(availableWidth * 0.8, viewport.width * 3.0); // Much larger scale
+            let targetHeight = targetWidth / aspectRatio;
             
-            // Allow reasonable large sizes - only constrain if truly excessive
-            const maxReasonableHeight = window.innerHeight * 1.2; // Increased from 0.8 to 1.2
-            if (canvasHeight > maxReasonableHeight) {
-                canvasHeight = maxReasonableHeight;
-                canvasWidth = canvasHeight * aspectRatio;
+            // If height is too large, scale by height instead
+            if (targetHeight > availableHeight) {
+                targetHeight = availableHeight;
+                targetWidth = targetHeight * aspectRatio;
             }
+            
+            // Ensure minimum readable size
+            const minWidth = 400;
+            if (targetWidth < minWidth) {
+                targetWidth = minWidth;
+                targetHeight = targetWidth / aspectRatio;
+            }
+            
+            let canvasWidth = targetWidth;
+            let canvasHeight = targetHeight;
             
             // Set canvas dimensions
             canvas.width = canvasWidth;

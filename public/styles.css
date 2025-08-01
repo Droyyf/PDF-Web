@@ -1577,11 +1577,12 @@ body {
     position: relative;
     flex: 1;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     overflow: auto;
-    min-height: 400px;
-    padding: 20px;
+    min-height: 500px;
+    padding: 30px;
+    max-height: calc(100vh - 250px);
 }
 
 .preview-canvas-container {
@@ -1589,10 +1590,11 @@ body {
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
     overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-block;
     background: transparent;
+    max-width: none;
+    width: auto;
+    height: auto;
 }
 
 #previewCanvas {
