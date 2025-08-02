@@ -42,11 +42,25 @@ class PDFComposerApp {
         setTimeout(() => this.initializeApp(), 100);
     }
 
-    initializeApp() {
-        console.log('Initializing PDF Composer App...');
-        this.setupPDFJS();
-        this.setupEventListeners();
-        this.showEmptyState();
+    async initializeApp() {
+        try {
+            console.log('Initializing PDF Composer App...');
+            this.setupPDFJS();
+            
+            // Use requestAnimationFrame for better timing than setTimeout
+            await new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    this.setupEventListeners();
+                    resolve();
+                });
+            });
+            
+            this.showEmptyState();
+            console.log('PDF Composer App initialized successfully');
+        } catch (error) {
+            console.error('Error initializing app:', error);
+            this.showToast('Failed to initialize application', 'error');
+        }
     }
 
     setupPDFJS() {
@@ -1455,20 +1469,21 @@ class PDFComposerApp {
     async generateCompositionPreview() {
         console.log('generateCompositionPreview called - Mode:', this.overlayMode, 'Citations:', this.selectedCitations.size, 'Cover:', this.selectedCover);
         
-        if (!this.currentPDF || this.selectedCitations.size === 0) {
-            this.showPreviewEmptyState();
-            return;
-        }
+        try {
+            if (!this.currentPDF || this.selectedCitations.size === 0) {
+                this.showPreviewEmptyState();
+                return;
+            }
 
-        // Ensure preview panel is visible first
-        const previewPanel = document.getElementById('previewPanel');
-        if (previewPanel && previewPanel.classList.contains('hidden')) {
-            console.log('Preview panel was hidden, showing it first');
-            previewPanel.classList.remove('hidden');
-        }
+            // Ensure preview panel is visible first
+            const previewPanel = document.getElementById('previewPanel');
+            if (previewPanel && previewPanel.classList.contains('hidden')) {
+                console.log('Preview panel was hidden, showing it first');
+                previewPanel.classList.remove('hidden');
+            }
 
-        // Hide empty state and show preview content
-        this.hidePreviewEmptyState();
+            // Hide empty state and show preview content
+            this.hidePreviewEmptyState();
         this.updatePreviewStatus();
         
         // Show appropriate preview mode containers
@@ -1604,13 +1619,28 @@ class PDFComposerApp {
                 if (previewCanvas) previewCanvas.style.display = 'none';
             }
         });
+        
+        } catch (error) {
+            console.error('Error in generateCompositionPreview:', error);
+            this.showPreviewEmptyState();
+        } finally {
+            // Ensure UI state is consistent
+            const exportBtn = document.getElementById('exportPreviewBtn');
+            if (exportBtn) {
+                exportBtn.disabled = !(this.selectedCitations.size > 0);
+            }
+        }
     }
 
     async renderPageToCanvas(context, pageIndex, x, y, width, height) {
         if (!this.currentPDF) return;
 
+        let tempCanvas = null;
+        let tempContext = null;
+        let page = null;
+        
         try {
-            const page = await this.currentPDF.getPage(pageIndex + 1);
+            page = await this.currentPDF.getPage(pageIndex + 1);
             const viewport = page.getViewport({ scale: 1 });
             
             // Calculate scale to fit target dimensions
@@ -1621,8 +1651,8 @@ class PDFComposerApp {
             const scaledViewport = page.getViewport({ scale });
             
             // Create temporary canvas for this page
-            const tempCanvas = document.createElement('canvas');
-            const tempContext = tempCanvas.getContext('2d');
+            tempCanvas = document.createElement('canvas');
+            tempContext = tempCanvas.getContext('2d');
             tempCanvas.width = scaledViewport.width;
             tempCanvas.height = scaledViewport.height;
             
@@ -1652,6 +1682,20 @@ class PDFComposerApp {
             context.font = '16px Arial';
             context.textAlign = 'center';
             context.fillText(`Page ${pageIndex + 1}`, x + width/2, y + height/2);
+        } finally {
+            // Clean up temporary canvas to prevent memory leaks
+            if (tempCanvas) {
+                tempCanvas.width = 0;
+                tempCanvas.height = 0;
+                tempCanvas = null;
+            }
+            if (tempContext) {
+                tempContext = null;
+            }
+            // Clean up PDF page reference
+            if (page && page.cleanup) {
+                page.cleanup();
+            }
         }
     }
 
@@ -1945,25 +1989,31 @@ class PDFComposerApp {
         console.log('Blob created, size:', blob.size);
         
         const url = URL.createObjectURL(blob);
-        console.log('Object URL created:', url);
         
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        
-        console.log('Triggering download click...');
-        link.click();
-        
-        document.body.removeChild(link);
-        console.log('Download triggered successfully');
-        
-        // Clean up
-        setTimeout(() => {
-            URL.revokeObjectURL(url);
-            console.log('Object URL cleaned up');
-        }, 1000);
+        try {
+            console.log('Object URL created:', url);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            
+            console.log('Triggering download click...');
+            link.click();
+            
+            document.body.removeChild(link);
+            console.log('Download triggered successfully');
+            
+        } catch (error) {
+            console.error('Download failed:', error);
+        } finally {
+            // Clean up object URL to prevent memory leaks
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+                console.log('Object URL cleaned up');
+            }, 1000);
+        }
     }
 
     dataURLToBytes(dataURL) {
@@ -2702,26 +2752,35 @@ class PDFComposerApp {
                 
                 // Get first citation page
                 const citationPageIndex = Array.from(this.selectedCitations)[0];
-                const citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
+                let citationPage = null;
                 
-                // Calculate high-resolution viewport for export
-                const baseViewport = citationPage.getViewport({ scale: 1 });
-                const exportScale = (previewCanvas.width * scale) / baseViewport.width;
-                const highResViewport = citationPage.getViewport({ scale: exportScale });
-                
-                console.log('Export scale calculation:', {
-                    previewWidth: previewCanvas.width,
-                    scale: scale,
-                    baseViewportWidth: baseViewport.width,
-                    exportScale: exportScale,
-                    highResWidth: highResViewport.width
-                });
-                
-                // Render citation page directly to export canvas at high resolution
-                await citationPage.render({
-                    canvasContext: exportContext,
-                    viewport: highResViewport
-                }).promise;
+                try {
+                    citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
+                    
+                    // Calculate high-resolution viewport for export
+                    const baseViewport = citationPage.getViewport({ scale: 1 });
+                    const exportScale = (previewCanvas.width * scale) / baseViewport.width;
+                    const highResViewport = citationPage.getViewport({ scale: exportScale });
+                    
+                    console.log('Export scale calculation:', {
+                        previewWidth: previewCanvas.width,
+                        scale: scale,
+                        baseViewportWidth: baseViewport.width,
+                        exportScale: exportScale,
+                        highResWidth: highResViewport.width
+                    });
+                    
+                    // Render citation page directly to export canvas at high resolution
+                    await citationPage.render({
+                        canvasContext: exportContext,
+                        viewport: highResViewport
+                    }).promise;
+                } finally {
+                    // Clean up citation page reference
+                    if (citationPage) {
+                        citationPage.cleanup();
+                    }
+                }
                 
                 // Draw the interactive cover on top if it exists and is visible
                 const coverContainer = document.getElementById('coverImageContainer');
@@ -2774,34 +2833,53 @@ class PDFComposerApp {
                     });
                     
                     // Create temporary high-resolution canvas for cover
-                    const tempCoverCanvas = document.createElement('canvas');
-                    tempCoverCanvas.width = highResCoverViewport.width;
-                    tempCoverCanvas.height = highResCoverViewport.height;
-                    const tempCoverContext = tempCoverCanvas.getContext('2d');
+                    let tempCoverCanvas = null;
+                    let tempCoverContext = null;
                     
-                    // Render cover page to temporary canvas at high resolution
-                    await coverPage.render({
-                        canvasContext: tempCoverContext,
-                        viewport: highResCoverViewport
-                    }).promise;
-                    
-                    // Add shadow effect and draw the high-res cover
-                    exportContext.save();
-                    exportContext.shadowColor = 'rgba(0, 0, 0, 0.3)';
-                    exportContext.shadowBlur = 8 * scale;
-                    exportContext.shadowOffsetX = 4 * scale;
-                    exportContext.shadowOffsetY = 4 * scale;
-                    
-                    exportContext.drawImage(
-                        tempCoverCanvas,
-                        exportRelativeX,
-                        exportRelativeY,
-                        exportCoverWidth,
-                        exportCoverHeight
-                    );
-                    
-                    exportContext.restore();
-                    console.log('Cover successfully added to export with coordinate conversion');
+                    try {
+                        tempCoverCanvas = document.createElement('canvas');
+                        tempCoverCanvas.width = highResCoverViewport.width;
+                        tempCoverCanvas.height = highResCoverViewport.height;
+                        tempCoverContext = tempCoverCanvas.getContext('2d');
+                        
+                        // Render cover page to temporary canvas at high resolution
+                        await coverPage.render({
+                            canvasContext: tempCoverContext,
+                            viewport: highResCoverViewport
+                        }).promise;
+                        
+                        // Add shadow effect and draw the high-res cover
+                        exportContext.save();
+                        exportContext.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                        exportContext.shadowBlur = 8 * scale;
+                        exportContext.shadowOffsetX = 4 * scale;
+                        exportContext.shadowOffsetY = 4 * scale;
+                        
+                        exportContext.drawImage(
+                            tempCoverCanvas,
+                            exportRelativeX,
+                            exportRelativeY,
+                            exportCoverWidth,
+                            exportCoverHeight
+                        );
+                        
+                        exportContext.restore();
+                        console.log('Cover successfully added to export with coordinate conversion');
+                    } finally {
+                        // Clean up temporary canvas resources
+                        if (tempCoverCanvas) {
+                            tempCoverCanvas.width = 0;
+                            tempCoverCanvas.height = 0;
+                            tempCoverCanvas = null;
+                        }
+                        if (tempCoverContext) {
+                            tempCoverContext = null;
+                        }
+                        // Clean up PDF page reference
+                        if (coverPage) {
+                            coverPage.cleanup();
+                        }
+                    }
                 } else {
                     console.log('No interactive cover to add to export - coverContainer:', !!coverContainer, 'coverCanvas:', !!coverCanvas, 'hidden:', coverContainer?.classList.contains('hidden'));
                 }
@@ -3001,13 +3079,14 @@ class PDFComposerApp {
         
         const context = canvas.getContext('2d');
         const container = canvas.parentElement;
+        let citationPage = null;
 
         try {
             // Get first citation page
             const citationPageIndex = Array.from(this.selectedCitations)[0];
             
             // Get citation page
-            const citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
+            citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
             const citationViewport = citationPage.getViewport({ scale: 1 });
             
             // Calculate main canvas size - use optimal dimensions for readability
@@ -3099,6 +3178,10 @@ class PDFComposerApp {
             context.font = '14px Arial';
             context.fillText(error.message, 50, 130);
         } finally {
+            // Clean up PDF page reference to prevent memory leaks
+            if (citationPage) {
+                citationPage.cleanup();
+            }
             this._renderingInProgress = false;
         }
     }
@@ -4381,10 +4464,49 @@ class PDFComposerApp {
         // Clean up intervals
         this.cleanupIntervals();
         
+        // Remove cover event listeners
+        this.removeCoverEventListeners();
+        
+        // Clean up canvas elements
+        this.cleanupCanvasElements();
+        
+        // Clean up PDF.js resources
+        if (this.currentPDF) {
+            this.currentPDF.destroy();
+            this.currentPDF = null;
+        }
+        
         // Release wake lock
         this.releaseWakeLock();
         
         console.log('Cleanup completed');
+    }
+    
+    cleanupCanvasElements() {
+        try {
+            // Clean up preview canvas
+            const previewCanvas = document.getElementById('previewCanvas');
+            if (previewCanvas) {
+                const context = previewCanvas.getContext('2d');
+                if (context) {
+                    context.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                }
+            }
+            
+            // Clean up cover canvas
+            const coverCanvas = document.getElementById('coverCanvas');
+            if (coverCanvas) {
+                const context = coverCanvas.getContext('2d');
+                if (context) {
+                    context.clearRect(0, 0, coverCanvas.width, coverCanvas.height);
+                }
+            }
+            
+            // Reset rendering flags
+            this._renderingInProgress = false;
+        } catch (error) {
+            console.error('Error cleaning up canvas elements:', error);
+        }
     }
     
     cancelThumbnailGeneration() {
