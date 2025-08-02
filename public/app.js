@@ -4042,47 +4042,55 @@ class PDFComposerApp {
             const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
             const coverViewport = coverPage.getViewport({ scale: 1 });
             
-            // Apply dynamic sizing logic for side-by-side mode
-            const maxWidth = Math.min(1400, window.innerWidth - 300);
-            const maxHeight = Math.min(800, window.innerHeight - 200); // Leave space for controls
+            // Dynamic sizing algorithm - calculate optimal dimensions based on content
+            const containerWidth = Math.min(1400, window.innerWidth - 300);
+            const containerHeight = Math.min(800, window.innerHeight - 200);
             
-            // Determine the number of citation pages
             const numCitationPages = citationPages.length;
             
-            // Calculate the width for each section (citations and cover)
-            // Allocate space more evenly, adjusting based on number of citation pages
-            const totalSections = 2; // citations section + cover section
-            
-            // More balanced allocation - adjust based on citation count
-            let citationRatio, coverRatio;
-            if (numCitationPages === 1) {
-                citationRatio = 0.5; // 50% for single citation
-                coverRatio = 0.5;    // 50% for cover
-            } else {
-                citationRatio = 0.65; // 65% for multiple citations
-                coverRatio = 0.35;    // 35% for cover
-            }
-            
-            const citationSectionWidth = maxWidth * citationRatio;
-            const coverSectionWidth = maxWidth * coverRatio;
-            
-            // Calculate average citation aspect ratio
-            const avgCitationAspectRatio = citationViewports.reduce((sum, vp) => sum + vp.width / vp.height, 0) / numCitationPages;
+            // Calculate total content aspect ratio for optimal space allocation
+            const citationAspectRatios = citationViewports.map(vp => vp.width / vp.height);
             const coverAspectRatio = coverViewport.width / coverViewport.height;
             
-            // Calculate required heights for each section
+            // Dynamic width allocation based on content aspect ratios
+            const totalCitationAspectRatio = citationAspectRatios.reduce((sum, ratio) => sum + ratio, 0);
+            const totalAspectRatio = totalCitationAspectRatio + coverAspectRatio;
+            
+            // Allocate width proportionally to aspect ratios
+            const citationWidthRatio = totalCitationAspectRatio / totalAspectRatio;
+            const coverWidthRatio = coverAspectRatio / totalAspectRatio;
+            
+            // Apply minimum and maximum constraints for better balance
+            const minCitationRatio = 0.4;
+            const maxCitationRatio = 0.75;
+            const adjustedCitationRatio = Math.max(minCitationRatio, Math.min(maxCitationRatio, citationWidthRatio));
+            const adjustedCoverRatio = 1 - adjustedCitationRatio;
+            
+            const citationSectionWidth = containerWidth * adjustedCitationRatio;
+            const coverSectionWidth = containerWidth * adjustedCoverRatio;
+            
+            // Calculate optimal height based on content scaling
             const citationWidthPerPage = citationSectionWidth / numCitationPages;
-            const citationRequiredHeight = citationWidthPerPage / avgCitationAspectRatio;
-            const coverRequiredHeight = coverSectionWidth / coverAspectRatio;
             
-            // Use the maximum required height, but cap at maxHeight
-            // Also ensure minimum height for readability
-            const minHeight = 400;
-            const targetHeight = Math.max(minHeight, Math.min(maxHeight, Math.max(citationRequiredHeight, coverRequiredHeight)));
+            // Find the most constraining citation page for height calculation
+            let maxRequiredHeight = 0;
+            for (const viewport of citationViewports) {
+                const scaleForWidth = citationWidthPerPage / viewport.width;
+                const requiredHeight = viewport.height * scaleForWidth;
+                maxRequiredHeight = Math.max(maxRequiredHeight, requiredHeight);
+            }
             
-            // Set canvas dimensions
-            canvas.width = maxWidth;
-            canvas.height = targetHeight;
+            // Calculate cover required height
+            const coverScaleForWidth = coverSectionWidth / coverViewport.width;
+            const coverRequiredHeight = coverViewport.height * coverScaleForWidth;
+            
+            // Use the maximum required height, ensuring content fills the space
+            const optimalHeight = Math.max(maxRequiredHeight, coverRequiredHeight);
+            const finalHeight = Math.min(containerHeight, Math.max(300, optimalHeight));
+            
+            // Set canvas dimensions to eliminate white space
+            canvas.width = containerWidth;
+            canvas.height = finalHeight;
             canvas.style.display = 'block';
             
             // Hide placeholder
@@ -4093,7 +4101,7 @@ class PDFComposerApp {
             context.fillStyle = '#ffffff';
             context.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Render all citation pages side by side on the left
+            // Render citation pages with optimal scaling
             let currentX = 0;
             const citationWidth = citationSectionWidth / numCitationPages;
             
@@ -4102,21 +4110,19 @@ class PDFComposerApp {
                 const viewport = citationViewports[i];
                 const pageIndex = citationPageIndices[i];
                 
-                // Calculate the scale to fit the citation in its allocated space
-                // while maintaining aspect ratio
-                const scale = Math.min(
-                    citationWidth / viewport.width,
-                    targetHeight / viewport.height
-                );
+                // Calculate scale to maximize content size while fitting in allocated space
+                const scaleX = citationWidth / viewport.width;
+                const scaleY = finalHeight / viewport.height;
+                const scale = Math.min(scaleX, scaleY);
                 
                 const scaledWidth = viewport.width * scale;
                 const scaledHeight = viewport.height * scale;
                 
-                // Center vertically and horizontally within allocated space
-                const pageY = (targetHeight - scaledHeight) / 2;
+                // Center the page within its allocated space
                 const pageX = currentX + (citationWidth - scaledWidth) / 2;
+                const pageY = (finalHeight - scaledHeight) / 2;
                 
-                console.log(`Rendering citation page ${pageIndex + 1} at scale ${scale}`);
+                console.log(`Rendering citation page ${pageIndex + 1} at scale ${scale.toFixed(3)}`);
                 context.save();
                 context.translate(pageX, pageY);
                 await page.render({
@@ -4128,21 +4134,19 @@ class PDFComposerApp {
                 currentX += citationWidth;
             }
             
-            // Calculate the scale to fit the cover in its allocated space
-            // while maintaining aspect ratio
-            const finalCoverScale = Math.min(
-                coverSectionWidth / coverViewport.width,
-                targetHeight / coverViewport.height
-            );
+            // Render cover page with optimal scaling
+            const coverScaleX = coverSectionWidth / coverViewport.width;
+            const coverScaleY = finalHeight / coverViewport.height;
+            const finalCoverScale = Math.min(coverScaleX, coverScaleY);
             
             const scaledCoverWidth = coverViewport.width * finalCoverScale;
             const scaledCoverHeight = coverViewport.height * finalCoverScale;
             
-            // Position the cover page in its section (right side)
+            // Center the cover page in its section
             const coverX = citationSectionWidth + (coverSectionWidth - scaledCoverWidth) / 2;
-            const coverY = (targetHeight - scaledCoverHeight) / 2;
+            const coverY = (finalHeight - scaledCoverHeight) / 2;
             
-            console.log('Rendering cover page', coverPageIndex + 1, 'at scale', finalCoverScale);
+            console.log(`Rendering cover page ${coverPageIndex + 1} at scale ${finalCoverScale.toFixed(3)}`);
             context.save();
             context.translate(coverX, coverY);
             await coverPage.render({
@@ -4151,7 +4155,7 @@ class PDFComposerApp {
             }).promise;
             context.restore();
             
-            console.log('Side by side preview complete');
+            console.log('Side by side preview complete with dynamic scaling');
             
             // Enable export button
             const exportBtn = document.getElementById('exportPreviewBtn');
