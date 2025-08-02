@@ -2512,6 +2512,24 @@ const loadingTimeout = setTimeout(() => {
         console.log('Export canvas size:', canvasWidth, 'x', canvasHeight);
         console.log('Current cover transform:', this.coverTransform);
         
+        // Validate coverTransform object
+        if (!this.coverTransform || 
+            typeof this.coverTransform.originalWidth === 'undefined' ||
+            typeof this.coverTransform.originalHeight === 'undefined' ||
+            typeof this.coverTransform.scale === 'undefined' ||
+            typeof this.coverTransform.x === 'undefined' ||
+            typeof this.coverTransform.y === 'undefined') {
+            console.warn('Invalid cover transform - using default values');
+            const defaultWidth = canvasWidth * 0.25;
+            const defaultHeight = canvasHeight * 0.35;
+            return {
+                x: canvasWidth - defaultWidth - 20,
+                y: 20,
+                width: defaultWidth,
+                height: defaultHeight
+            };
+        }
+        
         // Get preview canvas dimensions directly instead of container
         const previewCanvas = document.getElementById('previewCanvas');
         let previewWidth, previewHeight;
