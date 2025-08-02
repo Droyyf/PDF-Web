@@ -2408,13 +2408,16 @@ const loadingTimeout = setTimeout(() => {
 
         // Get the preview canvas dimensions as base
         const previewCanvas = document.getElementById('previewCanvas');
-        const baseWidth = previewCanvas.width;
-        const baseHeight = previewCanvas.height;
+        const baseWidth = previewCanvas ? previewCanvas.width : 800;
+        const baseHeight = previewCanvas ? previewCanvas.height : 1131;
         
         // Create high-resolution export canvas
         const exportCanvas = document.createElement('canvas');
         const context = exportCanvas.getContext('2d');
         
+        if (!baseWidth || !baseHeight) {
+          throw new Error('Invalid base dimensions');
+        }
         exportCanvas.width = baseWidth * scaleFactor;
         exportCanvas.height = baseHeight * scaleFactor;
         
@@ -2506,15 +2509,17 @@ const loadingTimeout = setTimeout(() => {
         
         // Get preview canvas dimensions directly instead of container
         const previewCanvas = document.getElementById('previewCanvas');
+        let previewWidth, previewHeight;
         if (!previewCanvas) {
-            console.error('Preview canvas not found for dimension calculation');
-            return null;
+            console.warn('Preview canvas not found - using fallback dimensions for export calculation');
+            previewWidth = 800;
+            previewHeight = 1131;
+        } else {
+            previewWidth = previewCanvas.width;
+            previewHeight = previewCanvas.height;
         }
         
-        const previewWidth = previewCanvas.width;
-        const previewHeight = previewCanvas.height;
-        
-        console.log('Preview canvas size:', previewWidth, 'x', previewHeight);
+        console.log('Preview size (actual or fallback):', previewWidth, 'x', previewHeight);
         
         // Calculate the ratio between export canvas and preview canvas
         const scaleRatioX = canvasWidth / previewWidth;
@@ -2685,14 +2690,25 @@ const loadingTimeout = setTimeout(() => {
         const exportContext = exportCanvas.getContext('2d');
         
         const scale = 2; // 2x resolution for high quality
-        exportCanvas.width = previewCanvas.width * scale;
-        exportCanvas.height = previewCanvas.height * scale;
+        let logicalWidth, logicalHeight;
+        if (!previewCanvas) {
+            console.warn('Preview canvas not found - using fallback for export');
+            logicalWidth = 800;
+            logicalHeight = 1131;
+            exportCanvas.width = logicalWidth * scale;
+            exportCanvas.height = logicalHeight * scale;
+        } else {
+            logicalWidth = previewCanvas.width;
+            logicalHeight = previewCanvas.height;
+            exportCanvas.width = logicalWidth * scale;
+            exportCanvas.height = logicalHeight * scale;
+        }
         
         // Scale the drawing context
         exportContext.scale(scale, scale);
         
         // Redraw the composition at high resolution
-        await this.redrawCompositionToCanvas(exportContext, previewCanvas.width, previewCanvas.height);
+        await this.redrawCompositionToCanvas(exportContext, logicalWidth, logicalHeight);
         
         // Convert canvas to image data
         const imageData = exportCanvas.toDataURL('image/png');
@@ -2725,14 +2741,25 @@ const loadingTimeout = setTimeout(() => {
         const exportContext = exportCanvas.getContext('2d');
         
         const scale = 3; // 3x resolution for high quality PNG
-        exportCanvas.width = previewCanvas.width * scale;
-        exportCanvas.height = previewCanvas.height * scale;
+        let logicalWidth, logicalHeight;
+        if (!previewCanvas) {
+            console.warn('Preview canvas not found - using fallback for export');
+            logicalWidth = 800;
+            logicalHeight = 1131;
+            exportCanvas.width = logicalWidth * scale;
+            exportCanvas.height = logicalHeight * scale;
+        } else {
+            logicalWidth = previewCanvas.width;
+            logicalHeight = previewCanvas.height;
+            exportCanvas.width = logicalWidth * scale;
+            exportCanvas.height = logicalHeight * scale;
+        }
         
         // Scale the drawing context
         exportContext.scale(scale, scale);
         
         // Redraw the composition at high resolution
-        await this.redrawCompositionToCanvas(exportContext, previewCanvas.width, previewCanvas.height);
+        await this.redrawCompositionToCanvas(exportContext, logicalWidth, logicalHeight);
         
         // Convert to blob and download
         exportCanvas.toBlob((blob) => {
@@ -2747,14 +2774,25 @@ const loadingTimeout = setTimeout(() => {
         const exportContext = exportCanvas.getContext('2d');
         
         const scale = 2; // 2x resolution for JPEG
-        exportCanvas.width = previewCanvas.width * scale;
-        exportCanvas.height = previewCanvas.height * scale;
+        let logicalWidth, logicalHeight;
+        if (!previewCanvas) {
+            console.warn('Preview canvas not found - using fallback for export');
+            logicalWidth = 800;
+            logicalHeight = 1131;
+            exportCanvas.width = logicalWidth * scale;
+            exportCanvas.height = logicalHeight * scale;
+        } else {
+            logicalWidth = previewCanvas.width;
+            logicalHeight = previewCanvas.height;
+            exportCanvas.width = logicalWidth * scale;
+            exportCanvas.height = logicalHeight * scale;
+        }
         
         // Scale the drawing context
         exportContext.scale(scale, scale);
         
         // Redraw the composition at high resolution
-        await this.redrawCompositionToCanvas(exportContext, previewCanvas.width, previewCanvas.height);
+        await this.redrawCompositionToCanvas(exportContext, logicalWidth, logicalHeight);
         
         // Convert to blob and download
         exportCanvas.toBlob((blob) => {
