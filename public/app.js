@@ -4178,9 +4178,9 @@ class PDFComposerApp {
             }
             
             // Render cover page with exact fitting to content dimensions
-            const coverWidthScale = coverSectionWidth / coverViewport.width;
-            const coverHeightScale = contentHeight / coverViewport.height;
-            const finalCoverScale = Math.min(coverWidthScale, coverHeightScale, 2.0);
+            const coverRenderWidthScale = coverSectionWidth / coverViewport.width;
+            const coverRenderHeightScale = contentHeight / coverViewport.height;
+            const finalCoverScale = Math.min(coverRenderWidthScale, coverRenderHeightScale, 2.0);
             
             const scaledCoverWidth = coverViewport.width * finalCoverScale;
             const scaledCoverHeight = coverViewport.height * finalCoverScale;
