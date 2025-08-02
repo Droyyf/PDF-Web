@@ -2468,6 +2468,11 @@ const loadingTimeout = setTimeout(() => {
             const page = await this.currentPDF.getPage(pageIndex + 1);
             const viewport = page.getViewport({ scale: 1 });
             
+            // Validate viewport dimensions
+            if (!viewport || !viewport.width || !viewport.height) {
+                throw new Error('Invalid page viewport dimensions');
+            }
+            
             // Calculate scale to fill the canvas while maintaining aspect ratio
             const scaleX = canvasWidth / viewport.width;
             const scaleY = canvasHeight / viewport.height;
@@ -2535,7 +2540,7 @@ const loadingTimeout = setTimeout(() => {
         let coverX, coverY, coverWidth, coverHeight;
         
         const previewCanvasContainer = document.querySelector('.preview-canvas-container');
-        if (previewCanvasContainer) {
+        if (previewCanvasContainer && previewCanvas) {
             const canvasRect = previewCanvas.getBoundingClientRect();
             const containerRect = previewCanvasContainer.getBoundingClientRect();
             
@@ -2618,6 +2623,11 @@ const loadingTimeout = setTimeout(() => {
         try {
             const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
             const viewport = coverPage.getViewport({ scale: 1 });
+            
+            // Validate viewport dimensions
+            if (!viewport || !viewport.width || !viewport.height) {
+                throw new Error('Invalid cover page viewport dimensions');
+            }
             
             console.log('Cover page viewport:', viewport.width, 'x', viewport.height);
             
@@ -4411,6 +4421,14 @@ const loadingTimeout = setTimeout(() => {
         // Load cover page
         const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
         const coverViewport = coverPage.getViewport({ scale: 1 });
+        
+        // Validate viewport dimensions
+        if (!citationViewport || !citationViewport.width || !citationViewport.height) {
+            throw new Error('Invalid citation page viewport dimensions');
+        }
+        if (!coverViewport || !coverViewport.width || !coverViewport.height) {
+            throw new Error('Invalid cover page viewport dimensions');
+        }
         
         // Calculate viewport-based dimensions for responsive scaling
         const headerHeight = 120; // Space for header and controls
