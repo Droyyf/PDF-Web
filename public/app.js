@@ -4107,32 +4107,33 @@ class PDFComposerApp {
             const citationSectionWidth = maxContainerWidth * adjustedCitationRatio;
             const coverSectionWidth = maxContainerWidth * adjustedCoverRatio;
             
-            // Calculate actual content dimensions with tight fitting
+            // Calculate exact content dimensions with NO white space
             const citationWidthPerPage = citationSectionWidth / numCitationPages;
             
-            // Calculate the exact scale for citation pages to fill space efficiently
+            // Calculate the exact scale for citation pages - use only width-based scaling
             let citationScales = [];
             let maxCitationHeight = 0;
+            let maxCitationWidth = 0;
             for (const viewport of citationViewports) {
                 const widthScale = citationWidthPerPage / viewport.width;
-                const heightScale = maxContainerHeight / viewport.height;
-                const actualScale = Math.min(widthScale, heightScale, 2.0);
-                citationScales.push(actualScale);
-                const scaledHeight = viewport.height * actualScale;
+                citationScales.push(widthScale);
+                const scaledHeight = viewport.height * widthScale;
+                const scaledWidth = viewport.width * widthScale;
                 maxCitationHeight = Math.max(maxCitationHeight, scaledHeight);
+                maxCitationWidth = Math.max(maxCitationWidth, scaledWidth);
             }
             
-            // Calculate the exact scale for cover page
+            // Calculate the exact scale for cover page - use only width-based scaling
             const coverWidthScale = coverSectionWidth / coverViewport.width;
-            const coverHeightScale = maxContainerHeight / coverViewport.height;
-            const actualCoverScale = Math.min(coverWidthScale, coverHeightScale, 2.0);
-            const actualCoverHeight = coverViewport.height * actualCoverScale;
+            const actualCoverHeight = coverViewport.height * coverWidthScale;
+            const actualCoverWidth = coverViewport.width * coverWidthScale;
             
-            // Use the actual content height, not container constraints
+            // Use the exact content dimensions - no padding, no margins
             const contentHeight = Math.max(maxCitationHeight, actualCoverHeight);
             
-            // Set canvas dimensions to exactly match content dimensions
-            canvas.width = citationSectionWidth + coverSectionWidth;
+            // Set canvas dimensions to exactly match content dimensions - no padding
+            const totalWidth = citationSectionWidth + coverSectionWidth;
+            canvas.width = totalWidth;
             canvas.height = contentHeight;
             canvas.style.display = 'block';
             
@@ -4144,7 +4145,7 @@ class PDFComposerApp {
             context.fillStyle = '#ffffff';
             context.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Render citation pages with exact fitting to content dimensions
+            // Render citation pages with exact width-based scaling
             let currentX = 0;
             const citationWidth = citationSectionWidth / numCitationPages;
             
@@ -4153,17 +4154,15 @@ class PDFComposerApp {
                 const viewport = citationViewports[i];
                 const pageIndex = citationPageIndices[i];
                 
-                // Calculate exact scale to fit content perfectly
-                const widthScale = citationWidth / viewport.width;
-                const heightScale = contentHeight / viewport.height;
-                const finalScale = Math.min(widthScale, heightScale, 2.0);
+                // Use exact width-based scale - no height constraints
+                const finalScale = citationScales[i];
                 
                 const scaledWidth = viewport.width * finalScale;
                 const scaledHeight = viewport.height * finalScale;
                 
-                // Position to fill the allocated space completely
+                // Position to fill exactly - no gaps
                 const pageX = currentX;
-                const pageY = 0; // Top-aligned
+                const pageY = 0; // Top-aligned, no vertical centering
                 
                 console.log(`Rendering citation page ${pageIndex + 1} at scale ${finalScale.toFixed(3)}`);
                 context.save();
@@ -4177,10 +4176,8 @@ class PDFComposerApp {
                 currentX += citationWidth;
             }
             
-            // Render cover page with exact fitting to content dimensions
-            const coverRenderWidthScale = coverSectionWidth / coverViewport.width;
-            const coverRenderHeightScale = contentHeight / coverViewport.height;
-            const finalCoverScale = Math.min(coverRenderWidthScale, coverRenderHeightScale, 2.0);
+            // Render cover page with exact width-based scaling
+            const finalCoverScale = coverWidthScale;
             
             const scaledCoverWidth = coverViewport.width * finalCoverScale;
             const scaledCoverHeight = coverViewport.height * finalCoverScale;
@@ -4189,7 +4186,7 @@ class PDFComposerApp {
             const coverX = citationSectionWidth;
             const coverY = 0; // Top-aligned
             
-            console.log(`Rendering cover page ${coverPageIndex + 1} at scale ${finalCoverScale.toFixed(3)} (width scale: ${coverWidthScale.toFixed(3)}, height scale: ${coverHeightScale.toFixed(3)})`);
+            console.log(`Rendering cover page ${coverPageIndex + 1} at scale ${finalCoverScale.toFixed(3)} (width scale: ${coverWidthScale.toFixed(3)})`);
             context.save();
             context.translate(coverX, coverY);
             await coverPage.render({
