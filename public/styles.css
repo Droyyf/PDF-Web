@@ -1390,9 +1390,9 @@ body {
     border: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 200px);
-    height: auto;
-    overflow: hidden;
+    height: auto; /* Auto height based on content */
+    width: auto; /* Auto width based on content */
+    overflow: visible; /* Changed from hidden to visible */
     transition: all var(--transition-smooth);
 }
 
@@ -1537,11 +1537,11 @@ body {
 }
 
 .preview-content {
-    flex: 1;
     position: relative;
-    overflow: auto;
+    overflow: visible; /* Changed from auto to visible */
     padding: var(--space-lg);
-    min-height: 0;
+    height: auto; /* Auto height based on content */
+    width: auto; /* Auto width based on content */
 }
 
 .preview-empty-state {
@@ -1575,14 +1575,13 @@ body {
 
 .preview-viewport {
     position: relative;
-    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: auto;
-    min-height: 200px;
+    overflow: visible; /* Changed from auto to visible to prevent scrollbars */
     padding: 20px;
-    max-height: calc(100vh - 200px);
+    height: auto; /* Auto height based on content */
+    width: auto; /* Auto width based on content */
 }
 
 .preview-canvas-container {
