@@ -4108,30 +4108,27 @@ class PDFComposerApp {
             const citationSectionWidth = containerWidth * adjustedCitationRatio;
             const coverSectionWidth = containerWidth * adjustedCoverRatio;
             
-            // Calculate optimal height to eliminate white space
+            // Calculate optimal height based on content scaling
             const citationWidthPerPage = citationSectionWidth / numCitationPages;
             
-            // Find the most constraining citation page for height calculation
-            let maxRequiredHeight = 0;
+            // Calculate the actual scale and height for citation pages
+            let maxCitationHeight = 0;
             for (const viewport of citationViewports) {
-                const scaleForWidth = citationWidthPerPage / viewport.width;
-                const requiredHeight = viewport.height * scaleForWidth;
-                maxRequiredHeight = Math.max(maxRequiredHeight, requiredHeight);
+                const widthScale = citationWidthPerPage / viewport.width;
+                const heightScale = containerHeight / viewport.height;
+                const actualScale = Math.min(widthScale, heightScale);
+                const scaledHeight = viewport.height * actualScale;
+                maxCitationHeight = Math.max(maxCitationHeight, scaledHeight);
             }
             
-            // Calculate cover required height
-            const coverScaleForWidth = coverSectionWidth / coverViewport.width;
-            const coverRequiredHeight = coverViewport.height * coverScaleForWidth;
+            // Calculate the actual scale and height for cover page
+            const coverWidthScaleCalc = coverSectionWidth / coverViewport.width;
+            const coverHeightScaleCalc = containerHeight / coverViewport.height;
+            const actualCoverScale = Math.min(coverWidthScaleCalc, coverHeightScaleCalc);
+            const actualCoverHeight = coverViewport.height * actualCoverScale;
             
-            // Use the exact height needed by content to eliminate white space
-            const contentRequiredHeight = Math.max(maxRequiredHeight, coverRequiredHeight);
-            const finalHeight = Math.min(containerHeight, contentRequiredHeight);
-            
-            // If content height exceeds container, scale everything down proportionally
-            let heightScaleFactor = 1;
-            if (contentRequiredHeight > containerHeight) {
-                heightScaleFactor = containerHeight / contentRequiredHeight;
-            }
+            // Use the maximum actual height from all content
+            const finalHeight = Math.max(maxCitationHeight, actualCoverHeight);
             
             // Set canvas dimensions to eliminate white space
             canvas.width = containerWidth;
@@ -4155,18 +4152,19 @@ class PDFComposerApp {
                 const viewport = citationViewports[i];
                 const pageIndex = citationPageIndices[i];
                 
-                // Calculate scale to fit width, then apply height scale factor
-                const baseScale = citationWidth / viewport.width;
-                const finalScale = baseScale * heightScaleFactor;
+                // Calculate scale to fill the available space completely
+                const widthScale = citationWidth / viewport.width;
+                const heightScale = finalHeight / viewport.height;
+                const finalScale = Math.min(widthScale, heightScale);
                 
                 const scaledWidth = viewport.width * finalScale;
                 const scaledHeight = viewport.height * finalScale;
                 
-                // Center horizontally, align to fill height
+                // Center horizontally, align to top to eliminate white space
                 const pageX = currentX + (citationWidth - scaledWidth) / 2;
-                const pageY = (finalHeight - scaledHeight) / 2;
+                const pageY = 0; // Align to top instead of centering
                 
-                console.log(`Rendering citation page ${pageIndex + 1} at scale ${finalScale.toFixed(3)} (base: ${baseScale.toFixed(3)}, height factor: ${heightScaleFactor.toFixed(3)})`);
+                console.log(`Rendering citation page ${pageIndex + 1} at scale ${finalScale.toFixed(3)} (width scale: ${widthScale.toFixed(3)}, height scale: ${heightScale.toFixed(3)})`);
                 context.save();
                 context.translate(pageX, pageY);
                 await page.render({
@@ -4179,17 +4177,18 @@ class PDFComposerApp {
             }
             
             // Render cover page with optimal scaling to eliminate white space
-            const baseCoverScale = coverSectionWidth / coverViewport.width;
-            const finalCoverScale = baseCoverScale * heightScaleFactor;
+            const coverWidthScale = coverSectionWidth / coverViewport.width;
+            const coverHeightScale = finalHeight / coverViewport.height;
+            const finalCoverScale = Math.min(coverWidthScale, coverHeightScale);
             
             const scaledCoverWidth = coverViewport.width * finalCoverScale;
             const scaledCoverHeight = coverViewport.height * finalCoverScale;
             
-            // Center the cover page in its section
+            // Center horizontally, align to top to eliminate white space
             const coverX = citationSectionWidth + (coverSectionWidth - scaledCoverWidth) / 2;
-            const coverY = (finalHeight - scaledCoverHeight) / 2;
+            const coverY = 0; // Align to top instead of centering
             
-            console.log(`Rendering cover page ${coverPageIndex + 1} at scale ${finalCoverScale.toFixed(3)} (base: ${baseCoverScale.toFixed(3)}, height factor: ${heightScaleFactor.toFixed(3)})`);
+            console.log(`Rendering cover page ${coverPageIndex + 1} at scale ${finalCoverScale.toFixed(3)} (width scale: ${coverWidthScale.toFixed(3)}, height scale: ${coverHeightScale.toFixed(3)})`);
             context.save();
             context.translate(coverX, coverY);
             await coverPage.render({
