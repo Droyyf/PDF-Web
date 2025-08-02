@@ -964,12 +964,15 @@ class PDFComposerApp {
             this.updateProgress(5, 'Starting upload...');
         }
         
-        // Set up a timeout to prevent infinite loading
-        const loadingTimeout = setTimeout(() => {
-            console.error('PDF loading timed out after 2 minutes');
-            this.showToast('PDF loading timed out. Please try a smaller PDF file.', 'error');
-            this.showEmptyState();
-        }, 120000); // 2 minute timeout for very large files
+        // Set up a dynamic timeout based on file size to prevent infinite loading
+const fileSizeMB = file.size / (1024 * 1024);
+const timeoutMinutes = Math.max(2, Math.ceil(fileSizeMB / 10));
+const timeoutDuration = timeoutMinutes * 60000;
+const loadingTimeout = setTimeout(() => {
+    console.error(`PDF loading timed out after ${timeoutMinutes} minutes`);
+    this.showToast('PDF loading timed out. Please try a smaller PDF file or check your connection.', 'error');
+    this.showEmptyState();
+}, timeoutDuration);
         
         try {
             await this.uploadPDF(file);
