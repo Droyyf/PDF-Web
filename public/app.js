@@ -1279,6 +1279,11 @@ class PDFComposerApp {
         this.updatePreviewStatus();
         this.updatePreviewVisibility();
         
+        // Re-render composition preview when cover selection changes
+        if (this.selectedCitations.size > 0 && this.selectedCover !== null) {
+            this.renderCompositionPreview();
+        }
+        
         console.log('=== COVER SELECTION COMPLETE ===');
     }
 
@@ -3082,11 +3087,12 @@ class PDFComposerApp {
         let citationPage = null;
 
         try {
-            // Get first citation page
-            const citationPageIndex = Array.from(this.selectedCitations)[0];
+            // Get all citation pages for multi-citation support
+            const citationPageIndices = Array.from(this.selectedCitations).sort((a, b) => a - b);
+            const firstCitationPageIndex = citationPageIndices[0];
             
-            // Get citation page
-            citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
+            // Get first citation page for canvas sizing
+            citationPage = await this.currentPDF.getPage(firstCitationPageIndex + 1);
             const citationViewport = citationPage.getViewport({ scale: 1 });
             
             // Calculate main canvas size - use optimal dimensions for readability
@@ -3096,41 +3102,33 @@ class PDFComposerApp {
             
             let canvasWidth, canvasHeight;
             
-            // Only calculate and set canvas dimensions if they're not already set
-            // This prevents the citation from getting smaller on each click
-            if (!canvas.width || !canvas.height) {
-                // Check if image is portrait (vertical) or landscape (horizontal)
-                if (aspectRatio < 1) {
-                    // Portrait/vertical image - prioritize height
-                    canvasHeight = maxHeight;
-                    canvasWidth = canvasHeight * aspectRatio;
-                    
-                    // If width is still too large, scale down
-                    if (canvasWidth > maxWidth) {
-                        canvasWidth = maxWidth;
-                        canvasHeight = canvasWidth / aspectRatio;
-                    }
-                } else {
-                    // Landscape/horizontal image - prioritize width
+            // Always recalculate canvas dimensions to fix shrinking issue
+            // Check if image is portrait (vertical) or landscape (horizontal)
+            if (aspectRatio < 1) {
+                // Portrait/vertical image - prioritize height
+                canvasHeight = maxHeight;
+                canvasWidth = canvasHeight * aspectRatio;
+                
+                // If width is still too large, scale down
+                if (canvasWidth > maxWidth) {
                     canvasWidth = maxWidth;
                     canvasHeight = canvasWidth / aspectRatio;
-                    
-                    // If height is too large, scale down
-                    if (canvasHeight > maxHeight) {
-                        canvasHeight = maxHeight;
-                        canvasWidth = canvasHeight * aspectRatio;
-                    }
                 }
-                
-                canvas.width = canvasWidth;
-                canvas.height = canvasHeight;
-                console.log('Canvas dimensions set to:', canvasWidth, 'x', canvasHeight);
             } else {
-                // Use existing canvas dimensions
-                canvasWidth = canvas.width;
-                canvasHeight = canvas.height;
-                console.log('Using existing canvas dimensions:', canvasWidth, 'x', canvasHeight);
+                // Landscape/horizontal image - prioritize width
+                canvasWidth = maxWidth;
+                canvasHeight = canvasWidth / aspectRatio;
+                
+                // If height is too large, scale down
+                if (canvasHeight > maxHeight) {
+                    canvasHeight = maxHeight;
+                    canvasWidth = canvasHeight * aspectRatio;
+                }
             }
+            
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            console.log('Canvas dimensions set to:', canvasWidth, 'x', canvasHeight);
             
             canvas.style.display = 'block';
             
@@ -3142,16 +3140,57 @@ class PDFComposerApp {
             context.fillStyle = '#ffffff';
             context.fillRect(0, 0, canvasWidth, canvasHeight);
             
-            // Calculate citation scale
-            const citationScale = canvasWidth / citationViewport.width;
-            const scaledCitationViewport = citationPage.getViewport({ scale: citationScale });
-            
-            // Render citation page (background)
-            console.log('Rendering citation page', citationPageIndex + 1);
-            await citationPage.render({
-                canvasContext: context,
-                viewport: scaledCitationViewport
-            }).promise;
+            // Render all citation pages (background)
+            if (citationPageIndices.length === 1) {
+                // Single citation - render full canvas
+                const citationScale = canvasWidth / citationViewport.width;
+                const scaledCitationViewport = citationPage.getViewport({ scale: citationScale });
+                
+                console.log('Rendering single citation page', firstCitationPageIndex + 1);
+                await citationPage.render({
+                    canvasContext: context,
+                    viewport: scaledCitationViewport
+                }).promise;
+            } else {
+                // Multiple citations - render side by side
+                const citationWidth = canvasWidth / citationPageIndices.length;
+                let currentX = 0;
+                
+                for (let i = 0; i < citationPageIndices.length; i++) {
+                    const pageIndex = citationPageIndices[i];
+                    const page = await this.currentPDF.getPage(pageIndex + 1);
+                    const viewport = page.getViewport({ scale: 1 });
+                    
+                    // Calculate scale to fit in allocated space
+                    const scale = Math.min(
+                        citationWidth / viewport.width,
+                        canvasHeight / viewport.height
+                    );
+                    
+                    const scaledWidth = viewport.width * scale;
+                    const scaledHeight = viewport.height * scale;
+                    
+                    // Center in allocated space
+                    const pageX = currentX + (citationWidth - scaledWidth) / 2;
+                    const pageY = (canvasHeight - scaledHeight) / 2;
+                    
+                    console.log(`Rendering citation page ${pageIndex + 1} at scale ${scale}`);
+                    context.save();
+                    context.translate(pageX, pageY);
+                    await page.render({
+                        canvasContext: context,
+                        viewport: page.getViewport({ scale })
+                    }).promise;
+                    context.restore();
+                    
+                    currentX += citationWidth;
+                    
+                    // Clean up page reference
+                    if (page !== citationPage) {
+                        page.cleanup();
+                    }
+                }
+            }
             
             console.log('Citation page rendered, setting up interactive cover');
             
@@ -3365,32 +3404,30 @@ class PDFComposerApp {
             
             // Apply dynamic sizing logic for side-by-side mode
             const maxWidth = Math.min(1400, window.innerWidth - 300);
-            const maxHeight = Math.min(800, window.innerHeight - 300); // Reduced to ensure controls are visible
-            
-            // Calculate the total available width
-            const availableWidth = maxWidth;
+            const maxHeight = Math.min(800, window.innerHeight - 200); // Leave space for controls
             
             // Determine the number of citation pages
             const numCitationPages = citationPages.length;
             
             // Calculate the width for each section (citations and cover)
-            // We want to allocate equal space for citations and cover
-            const citationSectionWidth = availableWidth / 2;
-            const coverSectionWidth = availableWidth / 2;
+            // Allocate space proportionally - more space for citations if multiple pages
+            const totalSections = 2; // citations section + cover section
+            const citationSectionWidth = maxWidth * 0.6; // 60% for citations
+            const coverSectionWidth = maxWidth * 0.4; // 40% for cover
             
-            // Calculate the height based on aspect ratios
-            const citationAspectRatio = citationViewports.reduce((sum, vp) => sum + vp.width / vp.height, 0) / numCitationPages;
+            // Calculate average citation aspect ratio
+            const avgCitationAspectRatio = citationViewports.reduce((sum, vp) => sum + vp.width / vp.height, 0) / numCitationPages;
             const coverAspectRatio = coverViewport.width / coverViewport.height;
             
-            // Calculate heights if we were to use the full width of each section
-            const citationHeightAtFullWidth = citationSectionWidth / citationAspectRatio;
-            const coverHeightAtFullWidth = coverSectionWidth / coverAspectRatio;
+            // Calculate required heights for each section
+            const citationRequiredHeight = (citationSectionWidth / numCitationPages) / avgCitationAspectRatio;
+            const coverRequiredHeight = coverSectionWidth / coverAspectRatio;
             
-            // Use the smaller height to ensure both fit within the canvas
-            const targetHeight = Math.min(maxHeight, citationHeightAtFullWidth, coverHeightAtFullWidth);
+            // Use the maximum required height, but cap at maxHeight
+            const targetHeight = Math.min(maxHeight, Math.max(citationRequiredHeight, coverRequiredHeight));
             
             // Set canvas dimensions
-            canvas.width = availableWidth;
+            canvas.width = maxWidth;
             canvas.height = targetHeight;
             canvas.style.display = 'block';
             
@@ -3401,10 +3438,6 @@ class PDFComposerApp {
             // Clear canvas with white background
             context.fillStyle = '#ffffff';
             context.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Calculate initial scales for citation and cover pages
-            const citationScale = (citationSectionWidth / numCitationPages) / citationViewports[0].width;
-            const initialCoverScale = coverSectionWidth / coverViewport.width;
             
             // Render all citation pages side by side on the left
             let currentX = 0;
@@ -3425,9 +3458,8 @@ class PDFComposerApp {
                 const scaledWidth = viewport.width * scale;
                 const scaledHeight = viewport.height * scale;
                 
-                // Center vertically
+                // Center vertically and horizontally within allocated space
                 const pageY = (targetHeight - scaledHeight) / 2;
-                // Center horizontally within its allocated space
                 const pageX = currentX + (citationWidth - scaledWidth) / 2;
                 
                 console.log(`Rendering citation page ${pageIndex + 1} at scale ${scale}`);
@@ -3452,7 +3484,7 @@ class PDFComposerApp {
             const scaledCoverWidth = coverViewport.width * finalCoverScale;
             const scaledCoverHeight = coverViewport.height * finalCoverScale;
             
-            // Center the cover page vertically and horizontally in its section
+            // Position the cover page in its section (right side)
             const coverX = citationSectionWidth + (coverSectionWidth - scaledCoverWidth) / 2;
             const coverY = (targetHeight - scaledCoverHeight) / 2;
             
@@ -4327,6 +4359,14 @@ class PDFComposerApp {
             if (transformInfo) {
                 transformInfo.style.display = 'block';
             }
+        }
+        
+        // Reset canvas state to prevent zoom/distortion issues when switching modes
+        const previewCanvas = document.getElementById('previewCanvas');
+        if (previewCanvas) {
+            const context = previewCanvas.getContext('2d');
+            context.setTransform(1, 0, 0, 1, 0, 0); // Reset transformation matrix
+            context.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         }
         
         // Re-render the composition preview with the new mode
