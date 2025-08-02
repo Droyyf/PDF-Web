@@ -2304,8 +2304,14 @@ class PDFComposerApp {
         
         console.log('Cover dimensions calculated:', coverDimensions);
         
-        // Render cover overlay at the exact user position
-        await this.renderCoverOverlay(context, coverDimensions);
+        // Check if cover dimensions are valid before rendering
+        if (coverDimensions && coverDimensions.width && coverDimensions.height) {
+            // Render cover overlay at the exact user position
+            await this.renderCoverOverlay(context, coverDimensions);
+        } else {
+            console.error('Invalid cover dimensions, skipping cover overlay rendering');
+            throw new Error('Cannot calculate cover dimensions - preview canvas not found');
+        }
         
         console.log('Composition rendering complete');
     }
@@ -3406,8 +3412,18 @@ class PDFComposerApp {
             const availableWidth = baseWidth - (padding * 3); // Left, middle, and right padding
             
             // Calculate the width for each section (citations and cover)
-            const citationSectionWidth = availableWidth / 2;
-            const coverSectionWidth = availableWidth / 2;
+            // Use same logic as preview for consistency
+            let citationRatio, coverRatio;
+            if (numCitationPages === 1) {
+                citationRatio = 0.5; // 50% for single citation
+                coverRatio = 0.5;    // 50% for cover
+            } else {
+                citationRatio = 0.65; // 65% for multiple citations
+                coverRatio = 0.35;    // 35% for cover
+            }
+            
+            const citationSectionWidth = availableWidth * citationRatio;
+            const coverSectionWidth = availableWidth * coverRatio;
             
             // Calculate the aspect ratios
             const citationAspectRatio = citationViewports[0].width / citationViewports[0].height;
@@ -3555,21 +3571,35 @@ class PDFComposerApp {
             const numCitationPages = citationPages.length;
             
             // Calculate the width for each section (citations and cover)
-            // Allocate space proportionally - more space for citations if multiple pages
+            // Allocate space more evenly, adjusting based on number of citation pages
             const totalSections = 2; // citations section + cover section
-            const citationSectionWidth = maxWidth * 0.6; // 60% for citations
-            const coverSectionWidth = maxWidth * 0.4; // 40% for cover
+            
+            // More balanced allocation - adjust based on citation count
+            let citationRatio, coverRatio;
+            if (numCitationPages === 1) {
+                citationRatio = 0.5; // 50% for single citation
+                coverRatio = 0.5;    // 50% for cover
+            } else {
+                citationRatio = 0.65; // 65% for multiple citations
+                coverRatio = 0.35;    // 35% for cover
+            }
+            
+            const citationSectionWidth = maxWidth * citationRatio;
+            const coverSectionWidth = maxWidth * coverRatio;
             
             // Calculate average citation aspect ratio
             const avgCitationAspectRatio = citationViewports.reduce((sum, vp) => sum + vp.width / vp.height, 0) / numCitationPages;
             const coverAspectRatio = coverViewport.width / coverViewport.height;
             
             // Calculate required heights for each section
-            const citationRequiredHeight = (citationSectionWidth / numCitationPages) / avgCitationAspectRatio;
+            const citationWidthPerPage = citationSectionWidth / numCitationPages;
+            const citationRequiredHeight = citationWidthPerPage / avgCitationAspectRatio;
             const coverRequiredHeight = coverSectionWidth / coverAspectRatio;
             
             // Use the maximum required height, but cap at maxHeight
-            const targetHeight = Math.min(maxHeight, Math.max(citationRequiredHeight, coverRequiredHeight));
+            // Also ensure minimum height for readability
+            const minHeight = 400;
+            const targetHeight = Math.max(minHeight, Math.min(maxHeight, Math.max(citationRequiredHeight, coverRequiredHeight)));
             
             // Set canvas dimensions
             canvas.width = maxWidth;
