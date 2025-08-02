@@ -1844,6 +1844,18 @@ class PDFComposerApp {
             previewCanvas.width = pageWidth;
             previewCanvas.height = pageHeight;
             
+            // Adjust border for custom overlay - same size as citation image with padding
+            const previewContainer = document.querySelector('.preview-canvas-container');
+            if (previewContainer) {
+                const padding = 20; // Padding around the citation image
+                const borderWidth = pageWidth + (padding * 2);
+                const borderHeight = pageHeight + (padding * 2);
+                
+                previewContainer.style.width = `${borderWidth}px`;
+                previewContainer.style.height = `${borderHeight}px`;
+                previewContainer.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+            }
+            
             console.log('Custom overlay mode canvas setup:', {
                 containerDims: `${container.clientWidth}x${container.clientHeight}`,
                 canvasDims: `${pageWidth}x${pageHeight}`,
@@ -4150,6 +4162,17 @@ class PDFComposerApp {
             canvas.width = totalWidth;
             canvas.height = contentHeight;
             canvas.style.display = 'block';
+            
+            // Adjust border for side-by-side mode - same height as images but double width
+            const previewContainer = document.querySelector('.preview-canvas-container');
+            if (previewContainer) {
+                const borderWidth = totalWidth * 2; // Double the width
+                const borderHeight = contentHeight; // Same height as images
+                
+                previewContainer.style.width = `${borderWidth}px`;
+                previewContainer.style.height = `${borderHeight}px`;
+                previewContainer.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+            }
             
             // Hide placeholder
             const placeholder = container.querySelector('.preview-placeholder');
