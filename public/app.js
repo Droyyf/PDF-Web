@@ -4433,19 +4433,36 @@ const loadingTimeout = setTimeout(() => {
         
         // Load first citation page as background
         const firstCitationPageIndex = citationPageIndices[0];
+        console.log('Loading citation page:', firstCitationPageIndex + 1);
         const citationPage = await this.currentPDF.getPage(firstCitationPageIndex + 1);
         const citationViewport = citationPage.getViewport({ scale: 1 });
+        console.log('Citation viewport:', citationViewport);
         
         // Load cover page
+        console.log('Loading cover page:', coverPageIndex + 1);
         const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
         const coverViewport = coverPage.getViewport({ scale: 1 });
+        console.log('Cover viewport:', coverViewport);
         
-        // Validate viewport dimensions
-        if (!citationViewport || !citationViewport.width || !citationViewport.height) {
-            throw new Error('Invalid citation page viewport dimensions');
+        // Validate viewport objects and dimensions
+        if (!citationViewport) {
+            throw new Error('Citation viewport is null or undefined');
         }
-        if (!coverViewport || !coverViewport.width || !coverViewport.height) {
-            throw new Error('Invalid cover page viewport dimensions');
+        if (typeof citationViewport.width !== 'number' || isNaN(citationViewport.width) || citationViewport.width <= 0) {
+            throw new Error(`Invalid citation viewport width: ${citationViewport.width}`);
+        }
+        if (typeof citationViewport.height !== 'number' || isNaN(citationViewport.height) || citationViewport.height <= 0) {
+            throw new Error(`Invalid citation viewport height: ${citationViewport.height}`);
+        }
+        
+        if (!coverViewport) {
+            throw new Error('Cover viewport is null or undefined');
+        }
+        if (typeof coverViewport.width !== 'number' || isNaN(coverViewport.width) || coverViewport.width <= 0) {
+            throw new Error(`Invalid cover viewport width: ${coverViewport.width}`);
+        }
+        if (typeof coverViewport.height !== 'number' || isNaN(coverViewport.height) || coverViewport.height <= 0) {
+            throw new Error(`Invalid cover viewport height: ${coverViewport.height}`);
         }
         
         // Calculate viewport-based dimensions for responsive scaling
@@ -4477,7 +4494,7 @@ const loadingTimeout = setTimeout(() => {
         // Render citation page as background
         await citationPage.render({
             canvasContext: context,
-            viewport: citationPage.getViewport({ scale: scale })
+            viewport: citationPage.getViewport({ scale: optimalScale })
         }).promise;
         
         // Get cover overlay position and size from preview (if available)
