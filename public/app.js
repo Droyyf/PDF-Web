@@ -497,11 +497,17 @@ class PDFComposerApp {
         window.addEventListener('unload', () => this.cleanup());
         window.addEventListener('pagehide', () => this.cleanup());
         
-        // Responsive resize handler for side-by-side preview
+        // Responsive resize handler for both preview modes
         window.addEventListener('resize', () => {
             if (this.selectedCitations.size > 0) {
-                // Only re-render if side-by-side preview is active
-                this.renderSideBySidePreview();
+                // Re-render based on current preview mode
+                if (this.selectedCover !== null) {
+                    // Custom overlay mode is active
+                    this.generateCompositionPreview();
+                } else {
+                    // Side-by-side mode is active
+                    this.renderSideBySidePreview();
+                }
             }
         });
     }
@@ -4342,9 +4348,22 @@ class PDFComposerApp {
         const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
         const coverViewport = coverPage.getViewport({ scale: 1 });
         
-        // Use original PDF page size for export
-        const canvasWidth = citationViewport.width * scale;
-        const canvasHeight = citationViewport.height * scale;
+        // Calculate viewport-based dimensions for responsive scaling
+        const headerHeight = 120; // Space for header and controls
+        const padding = 40; // Padding around content
+        const controlsHeight = 60; // Space for export button and format
+        
+        const maxContainerWidth = window.innerWidth - (padding * 2);
+        const maxContainerHeight = window.innerHeight - headerHeight - controlsHeight - (padding * 2);
+        
+        // Calculate optimal scale to fit viewport
+        const widthScale = maxContainerWidth / citationViewport.width;
+        const heightScale = maxContainerHeight / citationViewport.height;
+        const optimalScale = Math.min(widthScale, heightScale, 2.5); // Cap at 2.5x for readability
+        
+        // Use calculated scale instead of fixed scale
+        const canvasWidth = citationViewport.width * optimalScale;
+        const canvasHeight = citationViewport.height * optimalScale;
         
         // Create export canvas
         const exportCanvas = document.createElement('canvas');
@@ -4387,6 +4406,12 @@ class PDFComposerApp {
                 coverHeight = relativeHeight * canvasHeight;
             }
         }
+        
+        // Ensure overlay maintains reasonable proportions on different screen sizes
+        const maxCoverWidth = canvasWidth * 0.4; // Max 40% of canvas width
+        const minCoverWidth = canvasWidth * 0.15; // Min 15% of canvas width
+        coverWidth = Math.max(minCoverWidth, Math.min(maxCoverWidth, coverWidth));
+        coverHeight = (coverWidth / coverViewport.width) * coverViewport.height;
         
         // Ensure cover stays within bounds
         coverX = Math.max(0, Math.min(coverX, canvasWidth - coverWidth));
