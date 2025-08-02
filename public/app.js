@@ -429,22 +429,39 @@ class PDFComposerApp {
     }
     
     activateBackgroundPreservation() {
+        console.log('Activating enhanced background preservation for continuous PDF loading');
+        
         // Multiple strategies to keep processing alive in background
         this.startBackgroundKeepAlive();
         this.requestWakeLock();
         this.startHeartbeat();
+        
+        // Enhanced background processing indicators
+        this.showBackgroundProcessingIndicator();
         
         // Additional mitigation for throttling
         if (this.thumbnailWorker) {
             // Worker continues processing regardless of tab state
             console.log('Worker-based processing continues in background');
         }
+        
+        // Set aggressive keep-alive for PDF loading
+        this.setAggressiveKeepAlive();
     }
     
     deactivateBackgroundPreservation() {
+        console.log('Deactivating background preservation');
+        
         this.stopBackgroundKeepAlive();
         this.releaseWakeLock();
         this.stopHeartbeat();
+        this.hideBackgroundProcessingIndicator();
+        this.clearAggressiveKeepAlive();
+        
+        // Restore original title
+        if (this.originalTitle) {
+            document.title = this.originalTitle;
+        }
     }
     
     setupThrottlingDetection() {
@@ -577,6 +594,115 @@ class PDFComposerApp {
             clearInterval(this.keepAliveInterval);
             this.keepAliveInterval = null;
         }
+    }
+
+    showBackgroundProcessingIndicator() {
+        // Update document title to indicate background processing
+        if (!this.originalTitle) {
+            this.originalTitle = document.title;
+        }
+        document.title = '🔄 Processing PDF... - ' + this.originalTitle;
+        
+        // Update favicon to indicate processing
+        this.updateFaviconForProcessing();
+    }
+
+    hideBackgroundProcessingIndicator() {
+        // Restore original document title
+        if (this.originalTitle) {
+            document.title = this.originalTitle;
+        }
+        
+        // Restore original favicon
+        this.restoreOriginalFavicon();
+    }
+
+    setAggressiveKeepAlive() {
+        // More frequent keep-alive pings during critical operations
+        if (this.aggressiveKeepAliveInterval) {
+            clearInterval(this.aggressiveKeepAliveInterval);
+        }
+        
+        this.aggressiveKeepAliveInterval = setInterval(() => {
+            // Perform lightweight operations to keep tab active
+            const dummy = document.createElement('div');
+            dummy.style.display = 'none';
+            document.body.appendChild(dummy);
+            document.body.removeChild(dummy);
+            
+            // Update timestamp in localStorage
+            localStorage.setItem('pdfProcessingTimestamp', Date.now().toString());
+        }, 100); // Very frequent updates
+    }
+
+    clearAggressiveKeepAlive() {
+        if (this.aggressiveKeepAliveInterval) {
+            clearInterval(this.aggressiveKeepAliveInterval);
+            this.aggressiveKeepAliveInterval = null;
+        }
+        
+        // Clean up timestamp
+        localStorage.removeItem('pdfProcessingTimestamp');
+    }
+
+    updateFaviconForProcessing() {
+        // Store original favicon if not already stored
+        if (!this.originalFavicon) {
+            const existingFavicon = document.querySelector('link[rel="icon"]') || 
+                                  document.querySelector('link[rel="shortcut icon"]');
+            this.originalFavicon = existingFavicon ? existingFavicon.href : null;
+        }
+        
+        // Create processing favicon (spinning circle)
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw spinning circle
+        const time = Date.now() / 200;
+        ctx.clearRect(0, 0, 32, 32);
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(16, 16, 12, time, time + Math.PI * 1.5);
+        ctx.stroke();
+        
+        // Update favicon
+        this.setFavicon(canvas.toDataURL());
+        
+        // Schedule next update for animation
+        if (!this.faviconAnimationId) {
+            this.faviconAnimationId = setInterval(() => {
+                this.updateFaviconForProcessing();
+            }, 100);
+        }
+    }
+
+    restoreOriginalFavicon() {
+        // Stop favicon animation
+        if (this.faviconAnimationId) {
+            clearInterval(this.faviconAnimationId);
+            this.faviconAnimationId = null;
+        }
+        
+        // Restore original favicon
+        if (this.originalFavicon) {
+            this.setFavicon(this.originalFavicon);
+        }
+    }
+
+    setFavicon(href) {
+        let favicon = document.querySelector('link[rel="icon"]') || 
+                     document.querySelector('link[rel="shortcut icon"]');
+        
+        if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            document.head.appendChild(favicon);
+        }
+        
+        favicon.href = href;
     }
 
     initializeWorker() {
@@ -784,6 +910,9 @@ class PDFComposerApp {
         try {
             console.log('Loading PDF for viewing, file size:', file.size, 'bytes');
             
+            // Activate background processing support immediately
+            this.activateBackgroundPreservation();
+            
             // Check if PDF.js is available
             if (typeof pdfjsLib === 'undefined') {
                 console.error('PDF.js library not loaded - checking script tags...');
@@ -837,6 +966,9 @@ class PDFComposerApp {
                 this.updatePreview();
                 
                 console.log('PDF loading complete');
+                
+                // Deactivate background preservation after completion
+                this.deactivateBackgroundPreservation();
             }, 500);
             
         } catch (error) {
@@ -848,6 +980,9 @@ class PDFComposerApp {
                 clearInterval(this.progressInterval);
                 this.progressInterval = null;
             }
+            
+            // Deactivate background preservation on error
+            this.deactivateBackgroundPreservation();
             
             throw new Error(`Failed to load PDF for viewing: ${error.message}`);
         }
