@@ -4108,7 +4108,7 @@ class PDFComposerApp {
             
             // Calculate total width needed for citation pages
             const totalCitationWidth = citationViewports.reduce((sum, vp) => sum + vp.width, 0);
-            const totalWidth = totalCitationWidth + coverViewport.width;
+            const combinedContentWidth = totalCitationWidth + coverViewport.width;
             
             // Calculate height ratios to determine optimal layout
             const citationMaxHeight = Math.max(...citationViewports.map(vp => vp.height));
@@ -4119,7 +4119,7 @@ class PDFComposerApp {
             let optimalScale = 1;
             
             // Width-based scaling
-            const widthScale = maxContainerWidth / totalWidth;
+            const widthScale = maxContainerWidth / combinedContentWidth;
             
             // Height-based scaling  
             const heightScale = maxContainerHeight / maxContentHeight;
