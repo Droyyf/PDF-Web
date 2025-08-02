@@ -992,7 +992,8 @@ class PDFComposerApp {
         if (!this.currentPDF) return;
 
         console.log('Generating thumbnails for', this.totalPages, 'pages...');
-        this.thumbnails = [];
+        // Initialize thumbnails array with proper size to maintain correct indexing
+        this.thumbnails = new Array(this.totalPages).fill(null);
 
         // Set processing state
         this.isProcessing = true;
@@ -1072,6 +1073,9 @@ class PDFComposerApp {
         console.log('Document visibility state:', document.visibilityState);
         console.log('Document hidden:', document.hidden);
         
+        // Initialize thumbnails array with proper size to maintain indexing
+        this.thumbnails = new Array(this.totalPages).fill(null);
+        
         // Show thumbnail loading state
         const loadingElement = document.getElementById('thumbnailsLoading');
         if (loadingElement) {
@@ -1141,12 +1145,13 @@ class PDFComposerApp {
                     // Convert to base64
                     const thumbnailDataURL = canvas.toDataURL('image/png');
                     
-                    this.thumbnails.push({
+                    // Store thumbnail at correct index to maintain page order
+                    this.thumbnails[pageNum - 1] = {
                         page: pageNum - 1,
                         buffer: thumbnailDataURL,
                         width: viewport.width,
                         height: viewport.height
-                    });
+                    };
 
                     // Update progress for user feedback
                     const thumbnailProgress = 50 + (pageNum / this.totalPages) * 50; // From 50% to 100%
@@ -1198,13 +1203,13 @@ class PDFComposerApp {
                     
                 } catch (pageError) {
                     console.error(`Error generating thumbnail for page ${pageNum}:`, pageError);
-                    // Add placeholder thumbnail for failed page
-                    this.thumbnails.push({
+                    // Add placeholder thumbnail at correct index for failed page
+                    this.thumbnails[pageNum - 1] = {
                         page: pageNum - 1,
                         buffer: null,
                         width: 200,
                         height: 300
-                    });
+                    };
                     // Continue with next page
                 }
             }
@@ -1316,6 +1321,11 @@ class PDFComposerApp {
     }
 
     getThumbnailImageHTML(pageIndex) {
+        // Ensure thumbnails array exists and has proper length
+        if (!this.thumbnails || pageIndex >= this.thumbnails.length) {
+            return `<div class="thumbnail-loading">Loading...</div>`;
+        }
+        
         const thumbnail = this.thumbnails[pageIndex];
         if (thumbnail && thumbnail.buffer) {
             // Check if buffer is already a data URL or base64
