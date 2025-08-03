@@ -3242,36 +3242,16 @@ const loadingTimeout = setTimeout(() => {
     async createExportCanvas(scale = 1) {
         try {
             console.log('=== CREATE EXPORT CANVAS CALLED ===');
-            console.log('Creating export canvas with original PDF dimensions, scale:', scale);
+            console.log('Creating export canvas with new responsive scaling approach, scale:', scale);
             console.log('Current overlay mode:', this.overlayMode);
             
-            // Get the first citation page to determine original dimensions
-            const firstCitationPageIndex = Array.from(this.selectedCitations)[0];
-            if (!firstCitationPageIndex && this.selectedCover === null) {
-                throw new Error('No citation or cover page selected');
-            }
-            
-            let referencePage = firstCitationPageIndex !== undefined ? firstCitationPageIndex : this.selectedCover;
-            const page = await this.currentPDF.getPage(referencePage + 1);
-            const originalViewport = page.getViewport({ scale: 1 });
-            
-            console.log('Original PDF page dimensions:', originalViewport.width, 'x', originalViewport.height);
-            
-            // Create canvas with original PDF dimensions
-            const exportCanvas = document.createElement('canvas');
-            exportCanvas.width = originalViewport.width;
-            exportCanvas.height = originalViewport.height;
-            
-            const exportContext = exportCanvas.getContext('2d');
-            
-            // Handle differently based on overlay mode
+            // Use the new responsive export functions instead of original dimensions
             if (this.overlayMode === 'sidebyside') {
-                console.log('Creating export canvas for side-by-side mode with original dimensions');
-                
-                // For side-by-side mode, render at original PDF dimensions
-                await this.renderSideBySideExport(exportContext, originalViewport.width, originalViewport.height);
-                
-                return exportCanvas;
+                console.log('Using new side-by-side export approach');
+                return await this.createNewSideBySideExportCanvas(scale);
+            } else {
+                console.log('Using new custom overlay export approach');
+                return await this.createNewCustomOverlayExportCanvas(scale);
             }
             
             // For custom overlay mode, render citation page at original size
