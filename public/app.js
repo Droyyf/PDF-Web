@@ -5823,9 +5823,10 @@ const loadingTimeout = setTimeout(() => {
             const defaultX = citationLeft + citationWidth - scaledCoverWidth - padding;
             const defaultY = citationTop + padding;
             
-            // Ensure position is within citation bounds
-            this.coverTransform.x = Math.max(citationLeft + padding, Math.min(defaultX, citationLeft + citationWidth - scaledCoverWidth - padding));
-            this.coverTransform.y = Math.max(citationTop + padding, Math.min(defaultY, citationTop + citationHeight - scaledCoverHeight - padding));
+            // Use constrainCoverPosition to ensure the cover stays within bounds
+            const constrainedPosition = this.constrainCoverPosition(defaultX, defaultY);
+            this.coverTransform.x = constrainedPosition.x;
+            this.coverTransform.y = constrainedPosition.y;
             
             console.log('🔧 Citation bounds positioning debug:', {
                 citationBounds: { left: citationLeft, top: citationTop, width: citationWidth, height: citationHeight },
