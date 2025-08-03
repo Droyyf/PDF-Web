@@ -2451,16 +2451,29 @@ const loadingTimeout = setTimeout(() => {
             throw new Error(`Invalid cover page index: ${this.selectedCover} (valid range: 0-${numPages-1})`);
         }
 
-        // Get the preview canvas dimensions as base
-        const previewCanvas = document.getElementById('previewCanvas');
-        let baseWidth = previewCanvas ? previewCanvas.width : 800;
-        let baseHeight = previewCanvas ? previewCanvas.height : 1131;
+        let baseWidth, baseHeight;
         
-        // For side-by-side mode, adjust canvas dimensions
+        // For side-by-side mode, calculate dimensions based on actual PDF pages
         if (this.overlayMode === 'side-by-side') {
-            // Double the width for side-by-side layout, keep same height
-            baseWidth = baseWidth * 2;
-            console.log('Side-by-side mode: adjusted canvas dimensions to', baseWidth, 'x', baseHeight);
+            // Get the first citation page to determine base dimensions
+            const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
+            const firstCitationPage = await this.currentPDF.getPage(citationPages[0] + 1);
+            const citationViewport = firstCitationPage.getViewport({ scale: 1 });
+            
+            // Calculate optimal scale to fit content nicely
+            const targetHeight = 1200; // Standard height for good quality
+            const optimalScale = targetHeight / citationViewport.height;
+            
+            // Calculate final dimensions
+            baseHeight = targetHeight;
+            baseWidth = citationViewport.width * optimalScale * 2; // Double width for side-by-side
+            
+            console.log('Side-by-side mode: calculated canvas dimensions', baseWidth, 'x', baseHeight, 'with scale', optimalScale);
+        } else {
+            // For custom overlay mode, use preview canvas dimensions
+            const previewCanvas = document.getElementById('previewCanvas');
+            baseWidth = previewCanvas ? previewCanvas.width : 800;
+            baseHeight = previewCanvas ? previewCanvas.height : 1131;
         }
         
         // Create high-resolution export canvas
