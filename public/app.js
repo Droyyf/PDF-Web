@@ -5716,11 +5716,11 @@ const loadingTimeout = setTimeout(() => {
     updateCoverPosition() {
         const coverContainer = document.getElementById('coverImageContainer');
         if (coverContainer) {
-            // Use absolute positioning with proper property names
+            // Use absolute positioning with correct property names
             coverContainer.style.position = 'absolute';
-            coverContainer.style.left = this.coverPosition.x + 'px';
-            coverContainer.style.top = this.coverPosition.y + 'px';
-            coverContainer.style.transform = `scale(${this.coverScale})`;
+            coverContainer.style.left = this.coverTransform.x + 'px';
+            coverContainer.style.top = this.coverTransform.y + 'px';
+            coverContainer.style.transform = `scale(${this.coverTransform.scale})`;
             coverContainer.style.transformOrigin = 'top left';
             
             // Ensure the container remains visible
