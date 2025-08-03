@@ -4573,11 +4573,14 @@ const loadingTimeout = setTimeout(() => {
             throw new Error(`Failed to calculate dimensions: ${error.message}`);
         }
         
-        const baseWidth = Math.max(...citationViewports.map(v => v.width), coverViewport.width);
-        const baseHeight = Math.max(...citationViewports.map(v => v.height), coverViewport.height);
+        // Calculate dimensions for side-by-side layout
+        const maxCitationWidth = Math.max(...citationViewports.map(v => v.width));
+        const maxCitationHeight = Math.max(...citationViewports.map(v => v.height));
+        const totalWidth = maxCitationWidth + coverViewport.width;
+        const maxHeight = Math.max(maxCitationHeight, coverViewport.height);
         
-        const canvasWidth = baseWidth * scale;
-        const canvasHeight = baseHeight * scale;
+        const canvasWidth = totalWidth * scale;
+        const canvasHeight = maxHeight * scale;
         
         // Create export canvas
         const exportCanvas = document.createElement('canvas');
@@ -4593,7 +4596,7 @@ const loadingTimeout = setTimeout(() => {
         
         // Render citation pages (left side)
         if (citationPageIndices.length === 1) {
-            const citationScale = Math.min(halfWidth / citationViewports[0].width, canvasHeight / citationViewports[0].height) * scale;
+            const citationScale = Math.min(halfWidth / citationViewports[0].width, canvasHeight / citationViewports[0].height);
             const scaledCitationViewport = citationPages[0].getViewport({ scale: citationScale });
             
             const citationX = (halfWidth - scaledCitationViewport.width) / 2;
@@ -4609,7 +4612,7 @@ const loadingTimeout = setTimeout(() => {
             const availableHeight = canvasHeight / citationPageIndices.length;
             
             for (let i = 0; i < citationPages.length; i++) {
-                const citationScale = Math.min(halfWidth / citationViewports[i].width, availableHeight / citationViewports[i].height) * scale;
+                const citationScale = Math.min(halfWidth / citationViewports[i].width, availableHeight / citationViewports[i].height);
                 const scaledCitationViewport = citationPages[i].getViewport({ scale: citationScale });
                 
                 const citationX = (halfWidth - scaledCitationViewport.width) / 2;
@@ -4624,7 +4627,7 @@ const loadingTimeout = setTimeout(() => {
         }
         
         // Render cover page (right side)
-        const coverScale = Math.min(halfWidth / coverViewport.width, canvasHeight / coverViewport.height) * scale;
+        const coverScale = Math.min(halfWidth / coverViewport.width, canvasHeight / coverViewport.height);
         const scaledCoverViewport = coverPage.getViewport({ scale: coverScale });
         
         const coverX = halfWidth + (halfWidth - scaledCoverViewport.width) / 2;
