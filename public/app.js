@@ -2495,20 +2495,82 @@ const loadingTimeout = setTimeout(() => {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, canvasWidth, canvasHeight);
         
-        // Get the first selected citation page
-        const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
-        const citationPageIndex = citationPages[0];
+        // Get citation and cover pages
+        const citationPageIndices = Array.from(this.selectedCitations).sort((a, b) => a - b);
+        const firstCitationPageIndex = citationPageIndices[0];
+        const citationPage = await this.currentPDF.getPage(firstCitationPageIndex + 1);
+        const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
         
-        // Calculate dimensions for each half - no gaps
-        const halfWidth = canvasWidth / 2;
+        const citationViewport = citationPage.getViewport({ scale: 1 });
+        const coverViewport = coverPage.getViewport({ scale: 1 });
         
-        console.log('Rendering citation page', citationPageIndex, 'on left half (0, 0,', halfWidth, ',', canvasHeight, ')');
-        // Render citation page on the left half
-        await this.renderPageToCanvas(context, citationPageIndex, 0, 0, halfWidth, canvasHeight);
+        // Calculate citation section dimensions - match preview logic exactly
+        const numCitationPages = citationPageIndices.length;
+        const citationSectionWidth = canvasWidth * 0.6; // 60% for citations
+        const coverSectionWidth = canvasWidth * 0.4;   // 40% for cover
+        const citationWidth = citationSectionWidth / numCitationPages;
         
-        console.log('Rendering cover page', this.selectedCover, 'on right half (', halfWidth, ', 0,', halfWidth, ',', canvasHeight, ')');
-        // Render cover page on the right half
-        await this.renderPageToCanvas(context, this.selectedCover, halfWidth, 0, halfWidth, canvasHeight);
+        // Calculate optimal scale to fit both citation and cover in their sections
+        const citationScale = Math.min(
+            citationWidth / citationViewport.width,
+            canvasHeight / citationViewport.height
+        );
+        
+        const coverScale = Math.min(
+            coverSectionWidth / coverViewport.width,
+            canvasHeight / coverViewport.height
+        );
+        
+        // Use the same scale for both to maintain consistency
+        const optimalScale = Math.min(citationScale, coverScale);
+        
+        // Render citation page (left side)
+        const citationScaledViewport = citationPage.getViewport({ scale: optimalScale });
+        const citationX = (citationSectionWidth - citationScaledViewport.width) / 2;
+        const citationY = (canvasHeight - citationScaledViewport.height) / 2;
+        
+        console.log('Rendering citation page', firstCitationPageIndex, 'at position (', citationX, ',', citationY, ') with scale', optimalScale);
+        
+        // Create temporary canvas for citation page
+        const citationCanvas = document.createElement('canvas');
+        const citationContext = citationCanvas.getContext('2d');
+        citationCanvas.width = citationScaledViewport.width;
+        citationCanvas.height = citationScaledViewport.height;
+        
+        await citationPage.render({
+            canvasContext: citationContext,
+            viewport: citationScaledViewport
+        }).promise;
+        
+        context.drawImage(citationCanvas, citationX, citationY);
+        
+        // Render cover page (right side)
+        const coverScaledViewport = coverPage.getViewport({ scale: optimalScale });
+        const coverX = citationSectionWidth + (coverSectionWidth - coverScaledViewport.width) / 2;
+        const coverY = (canvasHeight - coverScaledViewport.height) / 2;
+        
+        console.log('Rendering cover page', this.selectedCover, 'at position (', coverX, ',', coverY, ') with scale', optimalScale);
+        
+        // Create temporary canvas for cover page
+        const coverCanvas = document.createElement('canvas');
+        const coverContext = coverCanvas.getContext('2d');
+        coverCanvas.width = coverScaledViewport.width;
+        coverCanvas.height = coverScaledViewport.height;
+        
+        await coverPage.render({
+            canvasContext: coverContext,
+            viewport: coverScaledViewport
+        }).promise;
+        
+        context.drawImage(coverCanvas, coverX, coverY);
+        
+        // Draw separator line to match preview
+        context.strokeStyle = '#ddd';
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(citationSectionWidth, 0);
+        context.lineTo(citationSectionWidth, canvasHeight);
+        context.stroke();
         
         console.log('Side-by-side rendering complete');
     }
