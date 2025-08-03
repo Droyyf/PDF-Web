@@ -2167,6 +2167,11 @@ const loadingTimeout = setTimeout(() => {
             
             const exportCanvas = await this.createExportCanvas(scale);
             console.log('=== EXPORT CANVAS CREATED SUCCESSFULLY ===');
+            
+            if (!exportCanvas) {
+                throw new Error('Failed to create export canvas - please ensure composition is rendered first');
+            }
+            
             console.log('Created export canvas with dimensions:', exportCanvas.width, 'x', exportCanvas.height);
             console.log('Export format requested:', format);
             
@@ -3242,7 +3247,7 @@ const loadingTimeout = setTimeout(() => {
                     
                     // Calculate cover scale for export - scale up by the same factor as the canvas
                     const previewCoverScale = this.coverTransform.scale;
-                    const exportCoverScale = previewCoverScale * exportScale;
+                    const exportCoverScale = previewCoverScale * scale;
                     const highResCoverViewport = coverPage.getViewport({ scale: exportCoverScale });
                     
                     // Calculate final export dimensions from preview size
