@@ -5706,7 +5706,7 @@ const loadingTimeout = setTimeout(() => {
         const coverWidth = parseFloat(coverContainer.style.width) || coverContainer.offsetWidth;
         const coverHeight = parseFloat(coverContainer.style.height) || coverContainer.offsetHeight;
         
-        console.log('constrainCoverPosition:', {
+        console.log('🔍 constrainCoverPosition DEBUG:', {
             input: { x, y },
             canvasDisplayRect: { 
                 left: canvasRect.left, 
@@ -5720,7 +5720,16 @@ const loadingTimeout = setTimeout(() => {
                 width: containerRect.width, 
                 height: containerRect.height 
             },
-            cover: { width: coverWidth, height: coverHeight }
+            cover: { width: coverWidth, height: coverHeight },
+            containerStyle: {
+                position: getComputedStyle(previewCanvasContainer).position,
+                transform: getComputedStyle(previewCanvasContainer).transform,
+                overflow: getComputedStyle(previewCanvasContainer).overflow
+            },
+            canvasStyle: {
+                position: getComputedStyle(previewCanvas).position,
+                transform: getComputedStyle(previewCanvas).transform
+            }
         });
         
         // Calculate boundaries using the canvas dimensions directly
@@ -5771,7 +5780,22 @@ const loadingTimeout = setTimeout(() => {
             coverContainer.style.visibility = 'visible';
             coverContainer.style.opacity = '1';
             
+            // Debug: Log the actual positioning after applying transform
+            const rect = coverContainer.getBoundingClientRect();
+            const previewContainer = document.querySelector('.preview-canvas-container');
+            const previewRect = previewContainer ? previewContainer.getBoundingClientRect() : null;
+            
             console.log('🎯 Transform applied:', transform);
+            console.log('📍 Cover position after transform:', {
+                coverRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+                previewRect: previewRect ? { left: previewRect.left, top: previewRect.top, width: previewRect.width, height: previewRect.height } : null,
+                isWithinPreview: previewRect ? (
+                    rect.left >= previewRect.left && 
+                    rect.top >= previewRect.top && 
+                    rect.right <= previewRect.right && 
+                    rect.bottom <= previewRect.bottom
+                ) : false
+            });
         } else {
             console.error('❌ updateCoverPosition: coverContainer not found');
         }
