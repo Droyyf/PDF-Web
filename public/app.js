@@ -2599,10 +2599,6 @@ const loadingTimeout = setTimeout(() => {
     async renderCompositionWithCustomCover(context, canvasWidth, canvasHeight) {
         console.log('Rendering composition with custom cover positioning');
         
-        // Clear canvas with white background
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, canvasWidth, canvasHeight);
-        
         // Get the first selected citation page to use as background
         const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
         const backgroundPageIndex = citationPages[0];
