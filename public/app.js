@@ -2817,10 +2817,10 @@ const loadingTimeout = setTimeout(() => {
                 throw new Error(`Invalid background viewport height for page ${pageIndex + 1}: ${viewport.height}`);
             }
             
-            // Calculate scale to fill the canvas while maintaining aspect ratio
+            // Calculate scale to fit the canvas while maintaining aspect ratio
             const scaleX = canvasWidth / viewport.width;
             const scaleY = canvasHeight / viewport.height;
-            const scale = Math.max(scaleX, scaleY); // Use max to fill the canvas
+            const scale = Math.min(scaleX, scaleY); // Use min to fit without cropping
             
             const scaledViewport = page.getViewport({ scale });
             
