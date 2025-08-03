@@ -4499,8 +4499,6 @@ const loadingTimeout = setTimeout(() => {
     }
 
     async createNewSideBySideExportCanvas(scale = 4) {
-        console.log('CREATE NEW SIDE BY SIDE EXPORT CANVAS');
-        
         const citationPageIndices = Array.from(this.selectedCitations).sort((a, b) => a - b);
         const coverPageIndex = this.selectedCover;
         
@@ -4513,10 +4511,8 @@ const loadingTimeout = setTimeout(() => {
         const citationViewports = [];
         
         for (const pageIndex of citationPageIndices) {
-            console.log('Loading citation page:', pageIndex + 1);
             const page = await this.currentPDF.getPage(pageIndex + 1);
             const viewport = page.getViewport({ scale: 1 });
-            console.log('Citation viewport:', viewport);
             
             // Validate citation viewport
             if (!viewport) {
@@ -4533,10 +4529,8 @@ const loadingTimeout = setTimeout(() => {
             citationViewports.push(viewport);
         }
         
-        console.log('Loading cover page:', coverPageIndex + 1);
         const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
         const coverViewport = coverPage.getViewport({ scale: 1 });
-        console.log('Cover viewport:', coverViewport);
         
         // Validate cover viewport
         if (!coverViewport) {
@@ -4547,30 +4541,6 @@ const loadingTimeout = setTimeout(() => {
         }
         if (typeof coverViewport.height !== 'number' || isNaN(coverViewport.height) || coverViewport.height <= 0) {
             throw new Error(`Invalid cover viewport height: ${coverViewport.height}`);
-        }
-        
-        // Calculate dimensions - use original PDF page size for export
-        try {
-            console.log('Calculating dimensions from viewports:');
-            console.log('Citation viewports:', citationViewports);
-            console.log('Cover viewport:', coverViewport);
-            
-            const citationWidths = citationViewports.map(v => v.width);
-            const citationHeights = citationViewports.map(v => v.height);
-            
-            console.log('Citation widths:', citationWidths);
-            console.log('Citation heights:', citationHeights);
-            console.log('Cover width:', coverViewport.width);
-            console.log('Cover height:', coverViewport.height);
-            
-            const baseWidth = Math.max(...citationWidths, coverViewport.width);
-            const baseHeight = Math.max(...citationHeights, coverViewport.height);
-            
-            console.log('Base dimensions calculated:', baseWidth, 'x', baseHeight);
-        } catch (error) {
-            console.error('Error calculating dimensions:', error);
-            console.error('Viewport data:', { citationViewports, coverViewport });
-            throw new Error(`Failed to calculate dimensions: ${error.message}`);
         }
         
         // Calculate dimensions for side-by-side layout
@@ -4594,43 +4564,18 @@ const loadingTimeout = setTimeout(() => {
         // Calculate side-by-side layout
         const halfWidth = canvasWidth / 2;
         
-        // Debug: Draw colored background for left half
-        context.fillStyle = '#f0f0f0';
-        context.fillRect(0, 0, halfWidth, canvasHeight);
-        
         // Render citation pages (left side)
         if (citationPageIndices.length === 1) {
-            console.log('Rendering single citation page:', citationPageIndices[0] + 1);
-            console.log('Citation viewport:', citationViewports[0]);
-            console.log('Canvas dimensions:', canvasWidth, 'x', canvasHeight);
-            console.log('Half width:', halfWidth);
-            
-            let citationScale = Math.max(0.1, Math.min(halfWidth / citationViewports[0].width, canvasHeight / citationViewports[0].height));
-            console.log('Citation scale:', citationScale);
-            
-            // Ensure scale is reasonable
-            if (isNaN(citationScale) || citationScale <= 0) {
-                console.error('Invalid citation scale:', citationScale);
-                citationScale = 1.0;
-            }
-            
+            const citationScale = Math.min(halfWidth / citationViewports[0].width, canvasHeight / citationViewports[0].height);
             const scaledCitationViewport = citationPages[0].getViewport({ scale: citationScale });
-            console.log('Scaled citation viewport:', scaledCitationViewport);
-            
             const citationX = (halfWidth - scaledCitationViewport.width) / 2;
             const citationY = (canvasHeight - scaledCitationViewport.height) / 2;
-            console.log('Citation position:', citationX, citationY);
-            
-            const renderViewport = citationPages[0].getViewport({ scale: citationScale });
-            console.log('Using render viewport:', renderViewport);
             
             await citationPages[0].render({
                 canvasContext: context,
-                viewport: renderViewport,
+                viewport: citationPages[0].getViewport({ scale: citationScale }),
                 transform: [1, 0, 0, 1, citationX, citationY]
             }).promise;
-            
-            console.log('Citation page rendered successfully');
         } else {
             // Multiple citations - stack vertically
             const availableHeight = canvasHeight / citationPageIndices.length;
