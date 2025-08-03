@@ -5687,117 +5687,45 @@ const loadingTimeout = setTimeout(() => {
     constrainCoverPosition(x, y) {
         const coverContainer = document.getElementById('coverImageContainer');
         const previewCanvas = document.getElementById('previewCanvas');
-        const previewCanvasContainer = document.querySelector('.preview-canvas-container');
         
-        if (!coverContainer || !previewCanvas || !previewCanvasContainer) {
-            console.log('constrainCoverPosition: Missing elements', { 
-                coverContainer: !!coverContainer, 
-                previewCanvas: !!previewCanvas,
-                previewCanvasContainer: !!previewCanvasContainer 
-            });
+        if (!coverContainer || !previewCanvas) {
             return { x, y };
         }
         
-        // Get the actual displayed canvas bounds (where the citation page is rendered)
-        const canvasRect = previewCanvas.getBoundingClientRect();
-        const containerRect = previewCanvasContainer.getBoundingClientRect();
+        // Get canvas dimensions directly
+        const canvasWidth = previewCanvas.width;
+        const canvasHeight = previewCanvas.height;
         
         // Get cover dimensions
         const coverWidth = parseFloat(coverContainer.style.width) || coverContainer.offsetWidth;
         const coverHeight = parseFloat(coverContainer.style.height) || coverContainer.offsetHeight;
         
-        console.log('🔍 constrainCoverPosition DEBUG:', {
-            input: { x, y },
-            canvasDisplayRect: { 
-                left: canvasRect.left, 
-                top: canvasRect.top, 
-                width: canvasRect.width, 
-                height: canvasRect.height 
-            },
-            containerRect: { 
-                left: containerRect.left, 
-                top: containerRect.top, 
-                width: containerRect.width, 
-                height: containerRect.height 
-            },
-            cover: { width: coverWidth, height: coverHeight },
-            containerStyle: {
-                position: getComputedStyle(previewCanvasContainer).position,
-                transform: getComputedStyle(previewCanvasContainer).transform,
-                overflow: getComputedStyle(previewCanvasContainer).overflow
-            },
-            canvasStyle: {
-                position: getComputedStyle(previewCanvas).position,
-                transform: getComputedStyle(previewCanvas).transform
-            }
-        });
+        // Simple boundary calculation - keep cover within canvas bounds
+        const padding = 10;
+        const minX = padding;
+        const minY = padding;
+        const maxX = Math.max(minX, canvasWidth - coverWidth - padding);
+        const maxY = Math.max(minY, canvasHeight - coverHeight - padding);
         
-        // Calculate boundaries using the canvas dimensions directly
-        // The canvas should fill the entire container, so use container-relative coordinates
-        const citationLeft = 0;
-        const citationTop = 0;
-        const citationRight = containerRect.width;
-        const citationBottom = containerRect.height;
-        
-        // Add small padding within the citation area
-        const padding = 8;
-        const minX = citationLeft + padding;
-        const minY = citationTop + padding;
-        const maxX = Math.max(minX, citationRight - coverWidth - padding);
-        const maxY = Math.max(minY, citationBottom - coverHeight - padding);
-        
-        const constrained = {
+        return {
             x: Math.max(minX, Math.min(maxX, x)),
             y: Math.max(minY, Math.min(maxY, y))
         };
-        
-        console.log('constrainCoverPosition result:', {
-            citationBounds: { left: citationLeft, top: citationTop, right: citationRight, bottom: citationBottom },
-            boundaries: { minX, minY, maxX, maxY },
-            constrained
-        });
-        
-        return constrained;
     }
 
     updateCoverPosition() {
         const coverContainer = document.getElementById('coverImageContainer');
         if (coverContainer) {
-            console.log('🔄 updateCoverPosition called:', {
-                position: { x: this.coverTransform.x, y: this.coverTransform.y },
-                scale: this.coverTransform.scale,
-                containerClasses: coverContainer.className,
-                containerVisible: !coverContainer.classList.contains('hidden'),
-                containerDisplay: getComputedStyle(coverContainer).display,
-                containerOpacity: getComputedStyle(coverContainer).opacity
-            });
+            // Use absolute positioning with proper property names
+            coverContainer.style.position = 'absolute';
+            coverContainer.style.left = this.coverPosition.x + 'px';
+            coverContainer.style.top = this.coverPosition.y + 'px';
+            coverContainer.style.transform = `scale(${this.coverScale})`;
+            coverContainer.style.transformOrigin = 'top left';
             
-            // Use transform for better performance and smoother animations
-            const transform = `translate(${this.coverTransform.x}px, ${this.coverTransform.y}px) scale(${this.coverTransform.scale})`;
-            coverContainer.style.transform = transform;
-            
-            // Ensure the container remains visible during transformations
+            // Ensure the container remains visible
             coverContainer.style.visibility = 'visible';
             coverContainer.style.opacity = '1';
-            
-            // Debug: Log the actual positioning after applying transform
-            const rect = coverContainer.getBoundingClientRect();
-            const previewContainer = document.querySelector('.preview-canvas-container');
-            const previewRect = previewContainer ? previewContainer.getBoundingClientRect() : null;
-            
-            console.log('🎯 Transform applied:', transform);
-            console.log('📍 Cover position after transform:', {
-                coverRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-                previewRect: previewRect ? { left: previewRect.left, top: previewRect.top, width: previewRect.width, height: previewRect.height } : null,
-                isWithinPreview: previewRect ? (
-                    rect.left >= previewRect.left && 
-                    rect.top >= previewRect.top && 
-                    rect.right <= previewRect.right && 
-                    rect.bottom <= previewRect.bottom
-                ) : false
-            });
-        } else {
-            console.error('❌ updateCoverPosition: coverContainer not found');
         }
     }
 
