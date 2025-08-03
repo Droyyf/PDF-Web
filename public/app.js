@@ -5686,26 +5686,27 @@ const loadingTimeout = setTimeout(() => {
 
     constrainCoverPosition(x, y) {
         const coverContainer = document.getElementById('coverImageContainer');
-        const previewCanvas = document.getElementById('previewCanvas');
+        const previewContainer = document.querySelector('.preview-canvas-container');
         
-        if (!coverContainer || !previewCanvas) {
+        if (!coverContainer || !previewContainer) {
             return { x, y };
         }
         
-        // Get canvas dimensions directly
-        const canvasWidth = previewCanvas.width;
-        const canvasHeight = previewCanvas.height;
+        // Get preview container's visible dimensions (not canvas dimensions)
+        const containerRect = previewContainer.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
         
-        // Get cover dimensions
-        const coverWidth = parseFloat(coverContainer.style.width) || coverContainer.offsetWidth;
-        const coverHeight = parseFloat(coverContainer.style.height) || coverContainer.offsetHeight;
+        // Get cover dimensions (accounting for scale)
+        const coverWidth = (parseFloat(coverContainer.style.width) || coverContainer.offsetWidth) * this.coverTransform.scale;
+        const coverHeight = (parseFloat(coverContainer.style.height) || coverContainer.offsetHeight) * this.coverTransform.scale;
         
-        // Simple boundary calculation - keep cover within canvas bounds
+        // Keep cover within visible preview container bounds
         const padding = 10;
         const minX = padding;
         const minY = padding;
-        const maxX = Math.max(minX, canvasWidth - coverWidth - padding);
-        const maxY = Math.max(minY, canvasHeight - coverHeight - padding);
+        const maxX = Math.max(minX, containerWidth - coverWidth - padding);
+        const maxY = Math.max(minY, containerHeight - coverHeight - padding);
         
         return {
             x: Math.max(minX, Math.min(maxX, x)),
