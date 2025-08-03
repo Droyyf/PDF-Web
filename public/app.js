@@ -4564,6 +4564,13 @@ const loadingTimeout = setTimeout(() => {
         // Calculate side-by-side layout
         const halfWidth = canvasWidth / 2;
         
+        // Debug: Add colored background to citation area (left half)
+        context.fillStyle = '#f0f0f0';
+        context.fillRect(0, 0, halfWidth, canvasHeight);
+        
+        // Reset fill style
+        context.fillStyle = '#ffffff';
+        
         // Render citation pages (left side)
         if (citationPageIndices.length === 1) {
             const citationScale = Math.min(halfWidth / citationViewports[0].width, canvasHeight / citationViewports[0].height);
@@ -4571,14 +4578,27 @@ const loadingTimeout = setTimeout(() => {
             const citationX = (halfWidth - scaledCitationViewport.width) / 2;
             const citationY = (canvasHeight - scaledCitationViewport.height) / 2;
             
+            console.log('Citation rendering debug:');
+            console.log('- Citation scale:', citationScale);
+            console.log('- Scaled citation viewport:', scaledCitationViewport);
+            console.log('- Citation position:', { x: citationX, y: citationY });
+            console.log('- Half width:', halfWidth);
+            console.log('- Canvas dimensions:', { width: canvasWidth, height: canvasHeight });
+            
             await citationPages[0].render({
                 canvasContext: context,
                 viewport: citationPages[0].getViewport({ scale: citationScale }),
                 transform: [1, 0, 0, 1, citationX, citationY]
             }).promise;
+            
+            console.log('Citation rendering completed');
         } else {
             // Multiple citations - stack vertically
             const availableHeight = canvasHeight / citationPageIndices.length;
+            
+            console.log('Multiple citations rendering debug:');
+            console.log('- Available height per citation:', availableHeight);
+            console.log('- Number of citations:', citationPages.length);
             
             for (let i = 0; i < citationPages.length; i++) {
                 const citationScale = Math.min(halfWidth / citationViewports[i].width, availableHeight / citationViewports[i].height);
@@ -4587,11 +4607,18 @@ const loadingTimeout = setTimeout(() => {
                 const citationX = (halfWidth - scaledCitationViewport.width) / 2;
                 const citationY = (availableHeight * i) + (availableHeight - scaledCitationViewport.height) / 2;
                 
+                console.log(`Citation ${i + 1} debug:`);
+                console.log('- Citation scale:', citationScale);
+                console.log('- Scaled citation viewport:', scaledCitationViewport);
+                console.log('- Citation position:', { x: citationX, y: citationY });
+                
                 await citationPages[i].render({
                     canvasContext: context,
                     viewport: citationPages[i].getViewport({ scale: citationScale }),
                     transform: [1, 0, 0, 1, citationX, citationY]
                 }).promise;
+                
+                console.log(`Citation ${i + 1} rendering completed`);
             }
         }
         
