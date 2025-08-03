@@ -5789,7 +5789,7 @@ const loadingTimeout = setTimeout(() => {
         console.log('coverCanvas dimensions:', coverCanvas?.width, 'x', coverCanvas?.height);
         
         if (previewCanvas && previewCanvas.width > 0 && coverCanvas && previewCanvasContainer) {
-            this.coverTransform.scale = 0.25;
+            this.coverTransform.scale = 1.0;
             
             // Calculate actual scaled cover dimensions
             const scaledCoverWidth = coverCanvas.width * this.coverTransform.scale;
