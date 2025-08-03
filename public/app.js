@@ -5258,7 +5258,19 @@ const loadingTimeout = setTimeout(() => {
                 // Force remove hidden class with a timeout to ensure visibility
                 setTimeout(() => {
                     coverContainer.classList.remove('hidden');
-                    console.log('🔧 Forced removal of hidden class, current classes:', coverContainer.className);
+                    const containerRect = coverContainer.getBoundingClientRect();
+                    const containerStyle = window.getComputedStyle(coverContainer);
+                    console.log('🔧 Container positioning debug:');
+                    console.log('  - Classes:', coverContainer.className);
+                    console.log('  - BoundingRect:', containerRect);
+                    console.log('  - Position:', containerStyle.position);
+                    console.log('  - Top:', containerStyle.top);
+                    console.log('  - Left:', containerStyle.left);
+                    console.log('  - Transform:', containerStyle.transform);
+                    console.log('  - Z-index:', containerStyle.zIndex);
+                    console.log('  - Display:', containerStyle.display);
+                    console.log('  - Visibility:', containerStyle.visibility);
+                    console.log('  - Opacity:', containerStyle.opacity);
                 }, 100);
                 
                 console.log('Cover container made visible and interactive');
@@ -5789,7 +5801,7 @@ const loadingTimeout = setTimeout(() => {
         console.log('coverCanvas dimensions:', coverCanvas?.width, 'x', coverCanvas?.height);
         
         if (previewCanvas && previewCanvas.width > 0 && coverCanvas && previewCanvasContainer) {
-            this.coverTransform.scale = 1.0;
+            this.coverTransform.scale = 0.25;
             
             // Calculate actual scaled cover dimensions
             const scaledCoverWidth = coverCanvas.width * this.coverTransform.scale;
