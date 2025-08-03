@@ -2307,12 +2307,18 @@ const loadingTimeout = setTimeout(() => {
     }
 
     async exportWithCustomCoverPosition(format) {
-        if (!this.currentPDF || this.selectedCitations.size === 0) {
+        console.log('=== STARTING EXPORT PROCESS ===');
+        console.log('Format:', format);
+        console.log('Current PDF:', this.currentPDF);
+        console.log('Selected citations:', Array.from(this.selectedCitations || []));
+        console.log('Selected cover:', this.selectedCover);
+
+        if (!this.currentPDF) {
             throw new Error('No PDF loaded or no citations selected');
         }
 
         // Check if we have both citation and cover selected for composition
-        const hasComposition = this.selectedCitations.size > 0 && this.selectedCover !== null;
+        const hasComposition = this.selectedCitations && this.selectedCitations.size > 0 && this.selectedCover !== null;
         
         if (!hasComposition) {
             throw new Error('Please select both citation pages and a cover page for export');
@@ -2324,11 +2330,15 @@ const loadingTimeout = setTimeout(() => {
             const previewMode = this.getPreviewMode();
             let exportCanvas;
             
+            console.log('Creating export canvas with mode:', previewMode);
+            
             if (previewMode === 'sidebyside') {
                 exportCanvas = await this.createNewSideBySideExportCanvas();
             } else {
                 exportCanvas = await this.createNewCustomOverlayExportCanvas();
             }
+            
+            console.log('Export canvas created successfully:', exportCanvas);
             
             if (format === 'pdf') {
                 const imageData = exportCanvas.toDataURL('image/png');
@@ -2345,6 +2355,8 @@ const loadingTimeout = setTimeout(() => {
                 throw new Error('Unsupported format: ' + format);
             }
         } catch (error) {
+            console.error('Export error details:', error);
+            console.error('Error stack:', error.stack);
             throw new Error(`Export failed: ${error.message}`);
         }
     }
@@ -4425,6 +4437,29 @@ const loadingTimeout = setTimeout(() => {
         }
         
         // Calculate dimensions - use original PDF page size for export
+        try {
+            console.log('Calculating dimensions from viewports:');
+            console.log('Citation viewports:', citationViewports);
+            console.log('Cover viewport:', coverViewport);
+            
+            const citationWidths = citationViewports.map(v => v.width);
+            const citationHeights = citationViewports.map(v => v.height);
+            
+            console.log('Citation widths:', citationWidths);
+            console.log('Citation heights:', citationHeights);
+            console.log('Cover width:', coverViewport.width);
+            console.log('Cover height:', coverViewport.height);
+            
+            const baseWidth = Math.max(...citationWidths, coverViewport.width);
+            const baseHeight = Math.max(...citationHeights, coverViewport.height);
+            
+            console.log('Base dimensions calculated:', baseWidth, 'x', baseHeight);
+        } catch (error) {
+            console.error('Error calculating dimensions:', error);
+            console.error('Viewport data:', { citationViewports, coverViewport });
+            throw new Error(`Failed to calculate dimensions: ${error.message}`);
+        }
+        
         const baseWidth = Math.max(...citationViewports.map(v => v.width), coverViewport.width);
         const baseHeight = Math.max(...citationViewports.map(v => v.height), coverViewport.height);
         
@@ -4523,23 +4558,33 @@ const loadingTimeout = setTimeout(() => {
         console.log('Cover viewport:', coverViewport);
         
         // Validate viewport objects and dimensions
+        console.log('Validating viewports in createNewCustomOverlayExportCanvas:');
+        console.log('Citation viewport:', citationViewport);
+        console.log('Cover viewport:', coverViewport);
+        
         if (!citationViewport) {
+            console.error('Citation viewport validation failed: viewport is null or undefined');
             throw new Error('Citation viewport is null or undefined');
         }
         if (typeof citationViewport.width !== 'number' || isNaN(citationViewport.width) || citationViewport.width <= 0) {
+            console.error('Citation viewport width validation failed:', citationViewport.width);
             throw new Error(`Invalid citation viewport width: ${citationViewport.width}`);
         }
         if (typeof citationViewport.height !== 'number' || isNaN(citationViewport.height) || citationViewport.height <= 0) {
+            console.error('Citation viewport height validation failed:', citationViewport.height);
             throw new Error(`Invalid citation viewport height: ${citationViewport.height}`);
         }
         
         if (!coverViewport) {
+            console.error('Cover viewport validation failed: viewport is null or undefined');
             throw new Error('Cover viewport is null or undefined');
         }
         if (typeof coverViewport.width !== 'number' || isNaN(coverViewport.width) || coverViewport.width <= 0) {
+            console.error('Cover viewport width validation failed:', coverViewport.width);
             throw new Error(`Invalid cover viewport width: ${coverViewport.width}`);
         }
         if (typeof coverViewport.height !== 'number' || isNaN(coverViewport.height) || coverViewport.height <= 0) {
+            console.error('Cover viewport height validation failed:', coverViewport.height);
             throw new Error(`Invalid cover viewport height: ${coverViewport.height}`);
         }
         
