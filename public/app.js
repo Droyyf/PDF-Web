@@ -5420,22 +5420,27 @@ const loadingTimeout = setTimeout(() => {
 
         event.preventDefault();
         
-        const newX = event.clientX - this.coverTransform.startX;
-        const newY = event.clientY - this.coverTransform.startY;
-        
-        console.log('handleCoverMouseMove:', { newX, newY });
-        
-        // Apply boundary checking
-        const constrainedPos = this.constrainCoverPosition(newX, newY);
-        
-        // Only update if position actually changed (prevents unnecessary redraws)
-        if (this.coverTransform.x !== constrainedPos.x || this.coverTransform.y !== constrainedPos.y) {
-            this.coverTransform.x = constrainedPos.x;
-            this.coverTransform.y = constrainedPos.y;
-            
-            this.updateCoverPosition();
-            this.updateCoverTransformInfo();
+        // Use requestAnimationFrame for smooth movement
+        if (this.coverMoveAnimationFrame) {
+            cancelAnimationFrame(this.coverMoveAnimationFrame);
         }
+        
+        this.coverMoveAnimationFrame = requestAnimationFrame(() => {
+            const newX = event.clientX - this.coverTransform.startX;
+            const newY = event.clientY - this.coverTransform.startY;
+            
+            // Apply boundary checking
+            const constrainedPos = this.constrainCoverPosition(newX, newY);
+            
+            // Only update if position actually changed (prevents unnecessary redraws)
+            if (this.coverTransform.x !== constrainedPos.x || this.coverTransform.y !== constrainedPos.y) {
+                this.coverTransform.x = constrainedPos.x;
+                this.coverTransform.y = constrainedPos.y;
+                
+                this.updateCoverPosition();
+                this.updateCoverTransformInfo();
+            }
+        });
     }
 
     handleCoverMouseUp(event) {
@@ -5567,16 +5572,40 @@ const loadingTimeout = setTimeout(() => {
         
         event.preventDefault();
         
-        // Calculate scale change based on mouse movement
-        const deltaX = event.clientX - this.coverTransform.startX;
-        const scaleChange = deltaX * 0.005; // Adjust sensitivity
+        // Use requestAnimationFrame for smooth resizing
+        if (this.resizeAnimationFrame) {
+            cancelAnimationFrame(this.resizeAnimationFrame);
+        }
         
-        const newScale = Math.max(
-            this.coverTransform.minScale,
-            Math.min(this.coverTransform.maxScale, this.coverTransform.startScale + scaleChange)
-        );
-        
-        this.updateCoverScale(newScale);
+        this.resizeAnimationFrame = requestAnimationFrame(() => {
+            const rect = document.getElementById('previewCanvas').getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            
+            // Calculate new dimensions based on bottom-right corner dragging
+            const newWidth = mouseX - this.coverTransform.x;
+            const newHeight = mouseY - this.coverTransform.y;
+            
+            // Maintain aspect ratio
+            const aspectRatio = this.coverTransform.originalWidth / this.coverTransform.originalHeight;
+            let finalWidth, finalHeight;
+            
+            if (newWidth / aspectRatio > newHeight) {
+                finalHeight = newHeight;
+                finalWidth = finalHeight * aspectRatio;
+            } else {
+                finalWidth = newWidth;
+                finalHeight = finalWidth / aspectRatio;
+            }
+            
+            // Calculate scale from new dimensions
+            const newScale = Math.max(
+                this.coverTransform.minScale,
+                Math.min(this.coverTransform.maxScale, finalWidth / this.coverTransform.originalWidth)
+            );
+            
+            this.updateCoverScale(newScale);
+        });
     }
 
     handleResizeMouseUp(event) {
