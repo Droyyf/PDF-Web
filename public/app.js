@@ -5254,6 +5254,13 @@ const loadingTimeout = setTimeout(() => {
             if (coverContainer) {
                 coverContainer.classList.remove('hidden');
                 coverContainer.classList.add('selected');
+                
+                // Force remove hidden class with a timeout to ensure visibility
+                setTimeout(() => {
+                    coverContainer.classList.remove('hidden');
+                    console.log('🔧 Forced removal of hidden class, current classes:', coverContainer.className);
+                }, 100);
+                
                 console.log('Cover container made visible and interactive');
             } else {
                 console.error('Cannot show cover container - element not found');
