@@ -5283,9 +5283,11 @@ const loadingTimeout = setTimeout(() => {
                 this.coverTransform.originalWidth = img.width;
                 this.coverTransform.originalHeight = img.height;
                 
-                console.log('CreateCoverCanvas - Setting up canvas:', {
+                console.log('🖼️ CreateCoverCanvas - Setting up canvas:', {
                     originalSize: { width: img.width, height: img.height },
-                    scale: this.coverTransform.scale
+                    scale: this.coverTransform.scale,
+                    containerClasses: coverContainer.className,
+                    containerStyle: coverContainer.style.cssText
                 });
                 
                 // Set canvas to original size (no scaling here)
@@ -5299,13 +5301,20 @@ const loadingTimeout = setTimeout(() => {
                 // Draw the image at original size
                 ctx.drawImage(img, 0, 0, img.width, img.height);
                 
+                console.log('🎨 Image drawn to canvas, calling updateCoverPosition...');
+                
                 // Apply transform-based positioning and scaling
                 this.updateCoverPosition();
+                
+                console.log('✅ CreateCoverCanvas completed, container classes:', coverContainer.className);
                 
                 resolve();
             };
             
-            img.onerror = reject;
+            img.onerror = (error) => {
+                console.error('❌ Image loading failed:', error);
+                reject(error);
+            };
             img.src = coverThumbnail.buffer;
         });
     }
@@ -5694,6 +5703,15 @@ const loadingTimeout = setTimeout(() => {
     updateCoverPosition() {
         const coverContainer = document.getElementById('coverImageContainer');
         if (coverContainer) {
+            console.log('🔄 updateCoverPosition called:', {
+                position: { x: this.coverTransform.x, y: this.coverTransform.y },
+                scale: this.coverTransform.scale,
+                containerClasses: coverContainer.className,
+                containerVisible: !coverContainer.classList.contains('hidden'),
+                containerDisplay: getComputedStyle(coverContainer).display,
+                containerOpacity: getComputedStyle(coverContainer).opacity
+            });
+            
             // Use transform for better performance and smoother animations
             const transform = `translate(${this.coverTransform.x}px, ${this.coverTransform.y}px) scale(${this.coverTransform.scale})`;
             coverContainer.style.transform = transform;
@@ -5701,6 +5719,10 @@ const loadingTimeout = setTimeout(() => {
             // Ensure the container remains visible during transformations
             coverContainer.style.visibility = 'visible';
             coverContainer.style.opacity = '1';
+            
+            console.log('🎯 Transform applied:', transform);
+        } else {
+            console.error('❌ updateCoverPosition: coverContainer not found');
         }
     }
 
