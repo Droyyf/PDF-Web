@@ -5420,26 +5420,25 @@ const loadingTimeout = setTimeout(() => {
 
         event.preventDefault();
         
-        // Use requestAnimationFrame for smooth movement
+        // Calculate new position immediately for responsiveness
+        const newX = event.clientX - this.coverTransform.startX;
+        const newY = event.clientY - this.coverTransform.startY;
+        
+        // Apply boundary checking
+        const constrainedPos = this.constrainCoverPosition(newX, newY);
+        
+        // Update position immediately for real-time feedback
+        this.coverTransform.x = constrainedPos.x;
+        this.coverTransform.y = constrainedPos.y;
+        
+        // Use requestAnimationFrame only for DOM updates to prevent blocking
         if (this.coverMoveAnimationFrame) {
             cancelAnimationFrame(this.coverMoveAnimationFrame);
         }
         
         this.coverMoveAnimationFrame = requestAnimationFrame(() => {
-            const newX = event.clientX - this.coverTransform.startX;
-            const newY = event.clientY - this.coverTransform.startY;
-            
-            // Apply boundary checking
-            const constrainedPos = this.constrainCoverPosition(newX, newY);
-            
-            // Only update if position actually changed (prevents unnecessary redraws)
-            if (this.coverTransform.x !== constrainedPos.x || this.coverTransform.y !== constrainedPos.y) {
-                this.coverTransform.x = constrainedPos.x;
-                this.coverTransform.y = constrainedPos.y;
-                
-                this.updateCoverPosition();
-                this.updateCoverTransformInfo();
-            }
+            this.updateCoverPosition();
+            this.updateCoverTransformInfo();
         });
     }
 
@@ -5572,39 +5571,44 @@ const loadingTimeout = setTimeout(() => {
         
         event.preventDefault();
         
-        // Use requestAnimationFrame for smooth resizing
+        // Calculate new scale immediately for responsiveness
+        const rect = document.getElementById('previewCanvas').getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        
+        // Calculate new dimensions based on bottom-right corner dragging
+        const newWidth = mouseX - this.coverTransform.x;
+        const newHeight = mouseY - this.coverTransform.y;
+        
+        // Maintain aspect ratio
+        const aspectRatio = this.coverTransform.originalWidth / this.coverTransform.originalHeight;
+        let finalWidth, finalHeight;
+        
+        if (newWidth / aspectRatio > newHeight) {
+            finalHeight = newHeight;
+            finalWidth = finalHeight * aspectRatio;
+        } else {
+            finalWidth = newWidth;
+            finalHeight = finalWidth / aspectRatio;
+        }
+        
+        // Calculate scale from new dimensions
+        const newScale = Math.max(
+            this.coverTransform.minScale,
+            Math.min(this.coverTransform.maxScale, finalWidth / this.coverTransform.originalWidth)
+        );
+        
+        // Update scale immediately
+        this.coverTransform.scale = newScale;
+        
+        // Use requestAnimationFrame only for DOM updates
         if (this.resizeAnimationFrame) {
             cancelAnimationFrame(this.resizeAnimationFrame);
         }
         
         this.resizeAnimationFrame = requestAnimationFrame(() => {
-            const rect = document.getElementById('previewCanvas').getBoundingClientRect();
-            const mouseX = event.clientX - rect.left;
-            const mouseY = event.clientY - rect.top;
-            
-            // Calculate new dimensions based on bottom-right corner dragging
-            const newWidth = mouseX - this.coverTransform.x;
-            const newHeight = mouseY - this.coverTransform.y;
-            
-            // Maintain aspect ratio
-            const aspectRatio = this.coverTransform.originalWidth / this.coverTransform.originalHeight;
-            let finalWidth, finalHeight;
-            
-            if (newWidth / aspectRatio > newHeight) {
-                finalHeight = newHeight;
-                finalWidth = finalHeight * aspectRatio;
-            } else {
-                finalWidth = newWidth;
-                finalHeight = finalWidth / aspectRatio;
-            }
-            
-            // Calculate scale from new dimensions
-            const newScale = Math.max(
-                this.coverTransform.minScale,
-                Math.min(this.coverTransform.maxScale, finalWidth / this.coverTransform.originalWidth)
-            );
-            
-            this.updateCoverScale(newScale);
+            this.updateCoverPosition();
+            this.updateCoverTransformInfo();
         });
     }
 
@@ -5619,42 +5623,9 @@ const loadingTimeout = setTimeout(() => {
     updateCoverScale(newScale) {
         this.coverTransform.scale = newScale;
         
-        // Recalculate dimensions
-        const newWidth = this.coverTransform.originalWidth * newScale;
-        const newHeight = this.coverTransform.originalHeight * newScale;
-        
-        // Update canvas and container
-        const coverCanvas = document.getElementById('coverCanvas');
-        const coverContainer = document.getElementById('coverImageContainer');
-        
-        if (coverCanvas && coverContainer) {
-            // Redraw canvas at new size
-            coverCanvas.width = newWidth;
-            coverCanvas.height = newHeight;
-            
-            coverContainer.style.width = newWidth + 'px';
-            coverContainer.style.height = newHeight + 'px';
-            
-            // Redraw the image
-            const ctx = coverCanvas.getContext('2d');
-            const coverThumbnail = this.thumbnails[this.selectedCover];
-            
-            if (coverThumbnail && coverThumbnail.buffer) {
-                const img = new Image();
-                img.onload = () => {
-                    ctx.drawImage(img, 0, 0, newWidth, newHeight);
-                };
-                img.src = coverThumbnail.buffer;
-            }
-            
-            // Constrain position after resize
-            const constrainedPos = this.constrainCoverPosition(this.coverTransform.x, this.coverTransform.y);
-            this.coverTransform.x = constrainedPos.x;
-            this.coverTransform.y = constrainedPos.y;
-            
-            this.updateCoverPosition();
-            this.updateCoverTransformInfo();
-        }
+        // Update position using transform-based approach
+        this.updateCoverPosition();
+        this.updateCoverTransformInfo();
     }
 
     constrainCoverPosition(x, y) {
@@ -5727,8 +5698,13 @@ const loadingTimeout = setTimeout(() => {
     updateCoverPosition() {
         const coverContainer = document.getElementById('coverImageContainer');
         if (coverContainer) {
-            coverContainer.style.left = this.coverTransform.x + 'px';
-            coverContainer.style.top = this.coverTransform.y + 'px';
+            // Use transform for better performance and smoother animations
+            const transform = `translate(${this.coverTransform.x}px, ${this.coverTransform.y}px) scale(${this.coverTransform.scale})`;
+            coverContainer.style.transform = transform;
+            
+            // Ensure the container remains visible during transformations
+            coverContainer.style.visibility = 'visible';
+            coverContainer.style.opacity = '1';
         }
     }
 
