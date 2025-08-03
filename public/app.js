@@ -2462,26 +2462,41 @@ const loadingTimeout = setTimeout(() => {
             const citationViewport = firstCitationPage.getViewport({ scale: 1 });
             const coverViewport = coverPage.getViewport({ scale: 1 });
             
-            // Calculate optimal scale to fit content nicely
-            const targetHeight = 1200; // Standard height for good quality
-            const optimalScale = targetHeight / citationViewport.height;
+            // Use the same responsive scaling logic as preview
+            // Calculate total width needed for both pages with 60/40 split
+            const citationWidth = citationViewport.width;
+            const coverWidth = coverViewport.width;
+            const maxContentHeight = Math.max(citationViewport.height, coverViewport.height);
             
-            // Calculate actual scaled dimensions for both pages
-            const citationScaledWidth = citationViewport.width * optimalScale;
-            const coverScaledWidth = coverViewport.width * optimalScale;
+            // Calculate optimal scale based on standard export dimensions
+            // Use a consistent approach that matches preview scaling
+            const targetExportWidth = 1200; // Standard width for export
+            const targetExportHeight = 800;  // Standard height for export
             
-            // Calculate final canvas dimensions based on 60/40 split
-            // Citation section needs 60% of total width, cover needs 40%
-            // So if citation takes citationScaledWidth in 60%, total width = citationScaledWidth / 0.6
-            const totalWidthBasedOnCitation = citationScaledWidth / 0.6;
-            const totalWidthBasedOnCover = coverScaledWidth / 0.4;
+            // Calculate scale to fit within reasonable export dimensions
+            const totalCombinedWidth = citationWidth + coverWidth;
+            const widthScale = targetExportWidth / totalCombinedWidth;
+            const heightScale = targetExportHeight / maxContentHeight;
+            const optimalScale = Math.min(widthScale, heightScale, 1.0);
             
-            // Use the larger of the two to ensure both fit comfortably
-            baseWidth = Math.max(totalWidthBasedOnCitation, totalWidthBasedOnCover);
-            baseHeight = targetHeight;
+            // Calculate final dimensions with 60/40 split
+            const citationSectionWidth = citationWidth * optimalScale;
+            const coverSectionWidth = coverWidth * optimalScale;
+            const contentHeight = maxContentHeight * optimalScale;
+            
+            // Apply 60/40 ratio to the total width
+            const citationScaledWidth = citationSectionWidth;
+            const coverScaledWidth = coverSectionWidth;
+            
+            // Calculate total width based on 60/40 split
+            const totalWidth = citationScaledWidth + coverScaledWidth;
+            const totalHeight = contentHeight;
+            
+            baseWidth = totalWidth;
+            baseHeight = totalHeight;
             
             console.log('Side-by-side mode: calculated canvas dimensions', baseWidth, 'x', baseHeight, 'with scale', optimalScale);
-            console.log('Citation scaled width:', citationScaledWidth, 'Cover scaled width:', coverScaledWidth);
+            console.log('Citation width:', citationScaledWidth, 'Cover width:', coverScaledWidth);
         } else {
             // For custom overlay mode, use preview canvas dimensions
             const previewCanvas = document.getElementById('previewCanvas');
@@ -2530,29 +2545,20 @@ const loadingTimeout = setTimeout(() => {
         const citationViewport = citationPage.getViewport({ scale: 1 });
         const coverViewport = coverPage.getViewport({ scale: 1 });
         
-        // Calculate citation section dimensions - match preview logic exactly
-        const numCitationPages = citationPageIndices.length;
-        const citationSectionWidth = canvasWidth * 0.6; // 60% for citations
-        const coverSectionWidth = canvasWidth * 0.4;   // 40% for cover
-        const citationWidth = citationSectionWidth / numCitationPages;
+        // Calculate dimensions based on actual content, not percentages
+        const citationWidth = citationViewport.width;
+        const coverWidth = coverViewport.width;
+        const maxContentHeight = Math.max(citationViewport.height, coverViewport.height);
         
-        // Calculate optimal scale to fit both citation and cover in their sections
-        const citationScale = Math.min(
-            citationWidth / citationViewport.width,
-            canvasHeight / citationViewport.height
-        );
-        
-        const coverScale = Math.min(
-            coverSectionWidth / coverViewport.width,
-            canvasHeight / coverViewport.height
-        );
-        
-        // Use the same scale for both to maintain consistency
-        const optimalScale = Math.min(citationScale, coverScale);
+        // Calculate scale to fit content exactly within canvas
+        const totalContentWidth = citationWidth + coverWidth;
+        const widthScale = canvasWidth / totalContentWidth;
+        const heightScale = canvasHeight / maxContentHeight;
+        const optimalScale = Math.min(widthScale, heightScale);
         
         // Render citation page (left side)
         const citationScaledViewport = citationPage.getViewport({ scale: optimalScale });
-        const citationX = (citationSectionWidth - citationScaledViewport.width) / 2;
+        const citationX = 0; // Left-aligned, no extra space
         const citationY = (canvasHeight - citationScaledViewport.height) / 2;
         
         console.log('Rendering citation page', firstCitationPageIndex, 'at position (', citationX, ',', citationY, ') with scale', optimalScale);
@@ -2570,9 +2576,9 @@ const loadingTimeout = setTimeout(() => {
         
         context.drawImage(citationCanvas, citationX, citationY);
         
-        // Render cover page (right side)
+        // Render cover page (right side) - directly adjacent to citation
         const coverScaledViewport = coverPage.getViewport({ scale: optimalScale });
-        const coverX = citationSectionWidth + (coverSectionWidth - coverScaledViewport.width) / 2;
+        const coverX = citationScaledViewport.width; // Directly next to citation, no gap
         const coverY = (canvasHeight - coverScaledViewport.height) / 2;
         
         console.log('Rendering cover page', this.selectedCover, 'at position (', coverX, ',', coverY, ') with scale', optimalScale);
@@ -2590,12 +2596,13 @@ const loadingTimeout = setTimeout(() => {
         
         context.drawImage(coverCanvas, coverX, coverY);
         
-        // Draw separator line to match preview
+        // Draw separator line at the exact boundary between pages
+        const separatorX = citationScaledViewport.width;
         context.strokeStyle = '#ddd';
         context.lineWidth = 1;
         context.beginPath();
-        context.moveTo(citationSectionWidth, 0);
-        context.lineTo(citationSectionWidth, canvasHeight);
+        context.moveTo(separatorX, 0);
+        context.lineTo(separatorX, canvasHeight);
         context.stroke();
         
         console.log('Side-by-side rendering complete');
