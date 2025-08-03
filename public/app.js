@@ -3212,73 +3212,72 @@ const loadingTimeout = setTimeout(() => {
                 const originalCoverWidth = previewCoverWidth * scaleX;
                 const originalCoverHeight = previewCoverHeight * scaleY;
                     
-                    console.log('Original dimensions cover rendering:', {
-                        originalDimensions: { width: originalViewport.width, height: originalViewport.height },
-                        coverPosition: { x: originalCoverX, y: originalCoverY },
-                        coverSize: { width: originalCoverWidth, height: originalCoverHeight }
-                    });
-                    
-                    // Create temporary canvas for cover at appropriate scale
-                    let tempCoverCanvas = null;
-                    let tempCoverContext = null;
-                    
-                    try {
-                        // Calculate scale for cover to fit the calculated dimensions
-                        const coverScaleX = originalCoverWidth / coverOriginalViewport.width;
-                        const coverScaleY = originalCoverHeight / coverOriginalViewport.height;
-                        const coverScale = Math.max(coverScaleX, coverScaleY);
-                        
-                        const scaledCoverViewport = coverPage.getViewport({ scale: coverScale });
-                        
-                        tempCoverCanvas = document.createElement('canvas');
-                        tempCoverCanvas.width = scaledCoverViewport.width;
-                        tempCoverCanvas.height = scaledCoverViewport.height;
-                        tempCoverContext = tempCoverCanvas.getContext('2d');
-                        
-                        // Render cover page to temporary canvas
-                        await coverPage.render({
-                            canvasContext: tempCoverContext,
-                            viewport: scaledCoverViewport
-                        }).promise;
-                        
-                        // Add shadow effect and draw the cover at original dimensions
-                        exportContext.save();
-                        exportContext.shadowColor = 'rgba(0, 0, 0, 0.3)';
-                        exportContext.shadowBlur = 8;
-                        exportContext.shadowOffsetX = 4;
-                        exportContext.shadowOffsetY = 4;
-                        
-                        exportContext.drawImage(
-                            tempCoverCanvas,
-                            originalCoverX,
-                            originalCoverY,
-                            originalCoverWidth,
-                            originalCoverHeight
-                        );
-                        
-                        exportContext.restore();
-                        console.log('Cover successfully added to export with coordinate conversion');
-                    } finally {
-                        // Clean up temporary canvas resources
-                        if (tempCoverCanvas) {
-                            tempCoverCanvas.width = 0;
-                            tempCoverCanvas.height = 0;
-                            tempCoverCanvas = null;
-                        }
-                        if (tempCoverContext) {
-                            tempCoverContext = null;
-                        }
-                        // Clean up PDF page reference
-                        if (coverPage) {
-                            coverPage.cleanup();
-                        }
-                    }
-                } else {
-                    console.log('No interactive cover to add to export - coverContainer:', !!coverContainer, 'coverCanvas:', !!coverCanvas, 'hidden:', coverContainer?.classList.contains('hidden'));
-                }
+                console.log('Original dimensions cover rendering:', {
+                    originalDimensions: { width: originalViewport.width, height: originalViewport.height },
+                    coverPosition: { x: originalCoverX, y: originalCoverY },
+                    coverSize: { width: originalCoverWidth, height: originalCoverHeight }
+                });
                 
-                return exportCanvas;
+                // Create temporary canvas for cover at appropriate scale
+                let tempCoverCanvas = null;
+                let tempCoverContext = null;
+                
+                try {
+                    // Calculate scale for cover to fit the calculated dimensions
+                    const coverScaleX = originalCoverWidth / coverOriginalViewport.width;
+                    const coverScaleY = originalCoverHeight / coverOriginalViewport.height;
+                    const coverScale = Math.max(coverScaleX, coverScaleY);
+                    
+                    const scaledCoverViewport = coverPage.getViewport({ scale: coverScale });
+                    
+                    tempCoverCanvas = document.createElement('canvas');
+                    tempCoverCanvas.width = scaledCoverViewport.width;
+                    tempCoverCanvas.height = scaledCoverViewport.height;
+                    tempCoverContext = tempCoverCanvas.getContext('2d');
+                    
+                    // Render cover page to temporary canvas
+                    await coverPage.render({
+                        canvasContext: tempCoverContext,
+                        viewport: scaledCoverViewport
+                    }).promise;
+                    
+                    // Add shadow effect and draw the cover at original dimensions
+                    exportContext.save();
+                    exportContext.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                    exportContext.shadowBlur = 8;
+                    exportContext.shadowOffsetX = 4;
+                    exportContext.shadowOffsetY = 4;
+                    
+                    exportContext.drawImage(
+                        tempCoverCanvas,
+                        originalCoverX,
+                        originalCoverY,
+                        originalCoverWidth,
+                        originalCoverHeight
+                    );
+                    
+                    exportContext.restore();
+                    console.log('Cover successfully added to export with coordinate conversion');
+                } finally {
+                    // Clean up temporary canvas resources
+                    if (tempCoverCanvas) {
+                        tempCoverCanvas.width = 0;
+                        tempCoverCanvas.height = 0;
+                        tempCoverCanvas = null;
+                    }
+                    if (tempCoverContext) {
+                        tempCoverContext = null;
+                    }
+                    // Clean up PDF page reference
+                    if (coverPage) {
+                        coverPage.cleanup();
+                    }
+                }
+            } else {
+                console.log('No interactive cover to add to export - coverContainer:', !!coverContainer, 'coverCanvas:', !!coverCanvas, 'hidden:', coverContainer?.classList.contains('hidden'));
             }
+            
+            return exportCanvas;
         } catch (error) {
             console.error('Error creating export canvas:', error);
             return null;
