@@ -3117,72 +3117,43 @@ const loadingTimeout = setTimeout(() => {
         this.updateProgress(100, 'PDF loaded successfully!');
     }
 
-    async createExportCanvas(scale = 4) {
+    async createExportCanvas(scale = 1) {
         try {
             console.log('=== CREATE EXPORT CANVAS CALLED ===');
-            console.log('Creating export canvas with interactive cover at scale:', scale);
+            console.log('Creating export canvas with original PDF dimensions, scale:', scale);
             console.log('Current overlay mode:', this.overlayMode);
             
-            // Get the current preview canvas as reference
-            const previewCanvas = document.getElementById('previewCanvas');
-            if (!previewCanvas || previewCanvas.width === 0 || previewCanvas.height === 0) {
-                console.log('Preview canvas not ready, creating export canvas from composition');
-                
-                // Create a new canvas for export
-                const exportCanvas = document.createElement('canvas');
-                const canvasWidth = 800 * scale;  // Standard export width scaled
-                const canvasHeight = 1000 * scale; // Standard export height scaled
-                
-                exportCanvas.width = canvasWidth;
-                exportCanvas.height = canvasHeight;
-                
-                const context = exportCanvas.getContext('2d');
-                context.scale(scale, scale);
-                
-                // Re-render the composition directly to export canvas
-                await this.renderCompositionToCanvas(context, 800, 1000);
-                
-                return exportCanvas;
-            } else {
-                // Create high-resolution export canvas combining main canvas + interactive cover
-                const exportCanvas = document.createElement('canvas');
-                exportCanvas.width = previewCanvas.width * scale;
-                exportCanvas.height = previewCanvas.height * scale;
-                
-                const exportContext = exportCanvas.getContext('2d');
+            // Get the first citation page to determine original dimensions
+            const citationPageIndex = Array.from(this.selectedCitations)[0];
+            if (!citationPageIndex && this.selectedCover === null) {
+                throw new Error('No citation or cover page selected');
+            }
+            
+            let referencePage = citationPageIndex !== undefined ? citationPageIndex : this.selectedCover;
+            const page = await this.currentPDF.getPage(referencePage + 1);
+            const originalViewport = page.getViewport({ scale: 1 });
+            
+            console.log('Original PDF page dimensions:', originalViewport.width, 'x', originalViewport.height);
+            
+            // Create canvas with original PDF dimensions
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = originalViewport.width;
+            exportCanvas.height = originalViewport.height;
+            
+            const exportContext = exportCanvas.getContext('2d');
                 
                 // Handle differently based on overlay mode
                 if (this.overlayMode === 'sidebyside') {
-                    console.log('Creating export canvas for side-by-side mode');
+                    console.log('Creating export canvas for side-by-side mode with original dimensions');
                     
-                    // For side-by-side mode, we need to re-render the entire composition
-                    // First, ensure the canvas has the correct dimensions
-                    // We'll use the same aspect ratio as the preview canvas but at higher resolution
-                    
-                    // Get the preview canvas dimensions
-                    const previewWidth = previewCanvas.width;
-                    const previewHeight = previewCanvas.height;
-                    
-                    console.log('Preview canvas dimensions:', previewWidth, 'x', previewHeight);
-                    console.log('Export scale:', scale);
-                    
-                    // Set the export canvas dimensions
-                    exportCanvas.width = previewWidth * scale;
-                    exportCanvas.height = previewHeight * scale;
-                    
-                    console.log('Export canvas dimensions:', exportCanvas.width, 'x', exportCanvas.height);
-                    
-                    // Scale the drawing context
-                    exportContext.scale(scale, scale);
-                    
-                    // Re-render the side-by-side composition at high resolution
-                    await this.renderSideBySideExport(exportContext, previewWidth, previewHeight);
+                    // For side-by-side mode, render at original PDF dimensions
+                    await this.renderSideBySideExport(exportContext, originalViewport.width, originalViewport.height);
                     
                     return exportCanvas;
                 }
                 
-                // For custom overlay mode, re-render citation page at high resolution
-                console.log('Re-rendering citation page at high resolution for export');
+                // For custom overlay mode, render citation page at original size
+                console.log('Re-rendering citation page at original dimensions for export');
                 
                 // Get first citation page
                 const citationPageIndex = Array.from(this.selectedCitations)[0];
@@ -3191,23 +3162,18 @@ const loadingTimeout = setTimeout(() => {
                 try {
                     citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
                     
-                    // Calculate high-resolution viewport for export
-                    const baseViewport = citationPage.getViewport({ scale: 1 });
-                    const exportScale = (previewCanvas.width * scale) / baseViewport.width;
-                    const highResViewport = citationPage.getViewport({ scale: exportScale });
+                    // Use original PDF dimensions (scale=1)
+                    const originalViewport = citationPage.getViewport({ scale: 1 });
                     
-                    console.log('Export scale calculation:', {
-                        previewWidth: previewCanvas.width,
-                        scale: scale,
-                        baseViewportWidth: baseViewport.width,
-                        exportScale: exportScale,
-                        highResWidth: highResViewport.width
+                    console.log('Rendering citation page at original dimensions:', {
+                        width: originalViewport.width,
+                        height: originalViewport.height
                     });
                     
-                    // Render citation page directly to export canvas at high resolution
+                    // Render citation page directly to export canvas at original resolution
                     await citationPage.render({
                         canvasContext: exportContext,
-                        viewport: highResViewport
+                        viewport: originalViewport
                     }).promise;
                 } finally {
                     // Clean up citation page reference
@@ -3237,64 +3203,77 @@ const loadingTimeout = setTimeout(() => {
                     const citationRelativeX = this.coverTransform.x - citationLeft;
                     const citationRelativeY = this.coverTransform.y - citationTop;
                     
-                    // Re-render cover page at high resolution
+                    // Re-render cover page at original dimensions
                     const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
-                    const coverBaseViewport = coverPage.getViewport({ scale: 1 });
+                    const coverOriginalViewport = coverPage.getViewport({ scale: 1 });
                     
-                    // Simple approach: scale everything by the export scale factor
-                    const exportRelativeX = citationRelativeX * scale;
-                    const exportRelativeY = citationRelativeY * scale;
+                    // Calculate relative positions and sizes based on original PDF dimensions
+                    const previewCanvasContainer = document.querySelector('.preview-canvas-container');
+                    const canvasRect = previewCanvas.getBoundingClientRect();
+                    const containerRect = previewCanvasContainer.getBoundingClientRect();
                     
-                    // Calculate cover scale for export - scale up by the same factor as the canvas
-                    const previewCoverScale = this.coverTransform.scale;
-                    const exportCoverScale = previewCoverScale * scale;
-                    const highResCoverViewport = coverPage.getViewport({ scale: exportCoverScale });
+                    // Calculate scale factors between preview and original dimensions
+                    const scaleX = originalViewport.width / previewCanvas.width;
+                    const scaleY = originalViewport.height / previewCanvas.height;
                     
-                    // Calculate final export dimensions from preview size
+                    // Convert cover position and size from preview to original dimensions
+                    const citationLeft = canvasRect.left - containerRect.left;
+                    const citationTop = canvasRect.top - containerRect.top;
+                    
+                    const citationRelativeX = this.coverTransform.x - citationLeft;
+                    const citationRelativeY = this.coverTransform.y - citationTop;
+                    
+                    const originalCoverX = citationRelativeX * scaleX;
+                    const originalCoverY = citationRelativeY * scaleY;
+                    
+                    // Calculate cover dimensions in original PDF space
                     const previewCoverWidth = parseFloat(coverContainer.style.width) || coverContainer.offsetWidth;
                     const previewCoverHeight = parseFloat(coverContainer.style.height) || coverContainer.offsetHeight;
-                    const exportCoverWidth = previewCoverWidth * scale;
-                    const exportCoverHeight = previewCoverHeight * scale;
+                    const originalCoverWidth = previewCoverWidth * scaleX;
+                    const originalCoverHeight = previewCoverHeight * scaleY;
                     
-                    console.log('High-res cover rendering:', {
-                        previewCoverScale,
-                        exportCoverScale,
-                        previewSize: { width: previewCoverWidth, height: previewCoverHeight },
-                        exportDimensions: { width: exportCoverWidth, height: exportCoverHeight },
-                        citationBounds: { left: citationLeft, top: citationTop },
-                        relativePosition: { x: citationRelativeX, y: citationRelativeY },
-                        exportPosition: { x: exportRelativeX, y: exportRelativeY }
+                    console.log('Original dimensions cover rendering:', {
+                        originalDimensions: { width: originalViewport.width, height: originalViewport.height },
+                        coverPosition: { x: originalCoverX, y: originalCoverY },
+                        coverSize: { width: originalCoverWidth, height: originalCoverHeight }
                     });
                     
-                    // Create temporary high-resolution canvas for cover
+                    // Create temporary canvas for cover at appropriate scale
                     let tempCoverCanvas = null;
                     let tempCoverContext = null;
                     
                     try {
+                        // Calculate scale for cover to fit the calculated dimensions
+                        const coverScaleX = originalCoverWidth / coverOriginalViewport.width;
+                        const coverScaleY = originalCoverHeight / coverOriginalViewport.height;
+                        const coverScale = Math.max(coverScaleX, coverScaleY);
+                        
+                        const scaledCoverViewport = coverPage.getViewport({ scale: coverScale });
+                        
                         tempCoverCanvas = document.createElement('canvas');
-                        tempCoverCanvas.width = highResCoverViewport.width;
-                        tempCoverCanvas.height = highResCoverViewport.height;
+                        tempCoverCanvas.width = scaledCoverViewport.width;
+                        tempCoverCanvas.height = scaledCoverViewport.height;
                         tempCoverContext = tempCoverCanvas.getContext('2d');
                         
-                        // Render cover page to temporary canvas at high resolution
+                        // Render cover page to temporary canvas
                         await coverPage.render({
                             canvasContext: tempCoverContext,
-                            viewport: highResCoverViewport
+                            viewport: scaledCoverViewport
                         }).promise;
                         
-                        // Add shadow effect and draw the high-res cover
+                        // Add shadow effect and draw the cover at original dimensions
                         exportContext.save();
                         exportContext.shadowColor = 'rgba(0, 0, 0, 0.3)';
-                        exportContext.shadowBlur = 8 * scale;
-                        exportContext.shadowOffsetX = 4 * scale;
-                        exportContext.shadowOffsetY = 4 * scale;
+                        exportContext.shadowBlur = 8;
+                        exportContext.shadowOffsetX = 4;
+                        exportContext.shadowOffsetY = 4;
                         
                         exportContext.drawImage(
                             tempCoverCanvas,
-                            exportRelativeX,
-                            exportRelativeY,
-                            exportCoverWidth,
-                            exportCoverHeight
+                            originalCoverX,
+                            originalCoverY,
+                            originalCoverWidth,
+                            originalCoverHeight
                         );
                         
                         exportContext.restore();
