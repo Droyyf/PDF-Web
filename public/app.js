@@ -5319,6 +5319,29 @@ const loadingTimeout = setTimeout(() => {
                 
                 console.log('🎨 Image drawn to canvas, calling updateCoverPosition...');
                 
+                // 🔍 DETAILED CANVAS DEBUG
+                const canvasRect = coverCanvas.getBoundingClientRect();
+                const containerRect = coverContainer.getBoundingClientRect();
+                const computedStyle = window.getComputedStyle(coverContainer);
+                const canvasData = ctx.getImageData(0, 0, Math.min(10, img.width), Math.min(10, img.height));
+                const hasContent = canvasData.data.some(pixel => pixel > 0);
+                
+                console.log('🔍 CANVAS DETAILED DEBUG:', {
+                    canvasDimensions: { width: coverCanvas.width, height: coverCanvas.height },
+                    canvasRect: { width: canvasRect.width, height: canvasRect.height, x: canvasRect.x, y: canvasRect.y },
+                    containerRect: { width: containerRect.width, height: containerRect.height, x: containerRect.x, y: containerRect.y },
+                    computedStyles: {
+                        display: computedStyle.display,
+                        visibility: computedStyle.visibility,
+                        opacity: computedStyle.opacity,
+                        zIndex: computedStyle.zIndex,
+                        transform: computedStyle.transform,
+                        position: computedStyle.position
+                    },
+                    hasCanvasContent: hasContent,
+                    imageSource: img.src.substring(0, 50) + '...'
+                });
+                
                 // Apply transform-based positioning and scaling
                 this.updateCoverPosition();
                 
