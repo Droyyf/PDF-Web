@@ -5812,8 +5812,9 @@ const loadingTimeout = setTimeout(() => {
             const containerRect = previewCanvasContainer.getBoundingClientRect();
             
             // Calculate citation page bounds in container coordinates
-            const citationLeft = canvasRect.left - containerRect.left;
-            const citationTop = canvasRect.top - containerRect.top;
+            // The cover should be positioned relative to the container, not the viewport
+            const citationLeft = 0; // Canvas starts at container's left edge
+            const citationTop = 0;  // Canvas starts at container's top edge
             const citationWidth = canvasRect.width;
             const citationHeight = canvasRect.height;
             
