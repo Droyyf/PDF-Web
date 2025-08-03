@@ -5826,10 +5826,14 @@ const loadingTimeout = setTimeout(() => {
             this.coverTransform.x = Math.max(citationLeft + padding, Math.min(defaultX, citationLeft + citationWidth - scaledCoverWidth - padding));
             this.coverTransform.y = Math.max(citationTop + padding, Math.min(defaultY, citationTop + citationHeight - scaledCoverHeight - padding));
             
-            console.log('Citation bounds positioning:', {
+            console.log('🔧 Citation bounds positioning debug:', {
                 citationBounds: { left: citationLeft, top: citationTop, width: citationWidth, height: citationHeight },
                 coverDimensions: { width: scaledCoverWidth, height: scaledCoverHeight },
-                finalPosition: { x: this.coverTransform.x, y: this.coverTransform.y }
+                calculatedPosition: { defaultX, defaultY },
+                finalPosition: { x: this.coverTransform.x, y: this.coverTransform.y },
+                canvasRect: { left: canvasRect.left, top: canvasRect.top, width: canvasRect.width, height: canvasRect.height },
+                containerRect: { left: containerRect.left, top: containerRect.top, width: containerRect.width, height: containerRect.height },
+                padding: padding
             });
         } else {
             // Fallback if canvas not ready
