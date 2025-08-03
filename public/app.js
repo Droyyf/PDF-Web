@@ -5723,12 +5723,12 @@ const loadingTimeout = setTimeout(() => {
             cover: { width: coverWidth, height: coverHeight }
         });
         
-        // Calculate boundaries using the actual citation page boundaries (canvas display area)
-        // Convert canvas screen coordinates to container-relative coordinates
-        const citationLeft = canvasRect.left - containerRect.left;
-        const citationTop = canvasRect.top - containerRect.top;
-        const citationRight = citationLeft + canvasRect.width;
-        const citationBottom = citationTop + canvasRect.height;
+        // Calculate boundaries using the canvas dimensions directly
+        // The canvas should fill the entire container, so use container-relative coordinates
+        const citationLeft = 0;
+        const citationTop = 0;
+        const citationRight = containerRect.width;
+        const citationBottom = containerRect.height;
         
         // Add small padding within the citation area
         const padding = 8;
