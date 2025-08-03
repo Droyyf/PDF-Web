@@ -2366,6 +2366,97 @@ const loadingTimeout = setTimeout(() => {
         }
     }
 
+    async createNewCustomOverlayExportCanvas(scaleFactor = 2) {
+        console.log('=== CREATING CUSTOM OVERLAY EXPORT CANVAS ===');
+        console.log('Scale factor:', scaleFactor);
+        
+        if (!this.currentPDF) {
+            throw new Error('No PDF document loaded');
+        }
+        
+        if (!this.selectedCitations || this.selectedCitations.size === 0) {
+            throw new Error('No citation pages selected');
+        }
+        
+        if (this.selectedCover === null || this.selectedCover === undefined) {
+            throw new Error('No cover page selected');
+        }
+        
+        // Get preview canvas dimensions for consistent scaling
+        const previewCanvas = document.getElementById('previewCanvas');
+        let baseWidth, baseHeight;
+        
+        if (!previewCanvas) {
+            console.warn('Preview canvas not found - using fallback dimensions');
+            baseWidth = 800;
+            baseHeight = 1131;
+        } else {
+            baseWidth = previewCanvas.width;
+            baseHeight = previewCanvas.height;
+        }
+        
+        console.log('Base dimensions:', baseWidth, 'x', baseHeight);
+        
+        // Create high-resolution export canvas
+        const exportCanvas = document.createElement('canvas');
+        const context = exportCanvas.getContext('2d');
+        
+        exportCanvas.width = baseWidth * scaleFactor;
+        exportCanvas.height = baseHeight * scaleFactor;
+        
+        console.log('Export canvas dimensions:', exportCanvas.width, 'x', exportCanvas.height);
+        
+        // Scale the drawing context
+        context.scale(scaleFactor, scaleFactor);
+        
+        // Render the composition using the same logic as preview
+        await this.renderCompositionWithCustomCover(context, baseWidth, baseHeight);
+        
+        console.log('Custom overlay export canvas created successfully');
+        return exportCanvas;
+    }
+
+    async createNewSideBySideExportCanvas(scaleFactor = 2) {
+        console.log('=== CREATING SIDE-BY-SIDE EXPORT CANVAS ===');
+        console.log('Scale factor:', scaleFactor);
+        
+        if (!this.currentPDF) {
+            throw new Error('No PDF document loaded');
+        }
+        
+        if (!this.selectedCitations || this.selectedCitations.size === 0) {
+            throw new Error('No citation pages selected');
+        }
+        
+        if (this.selectedCover === null || this.selectedCover === undefined) {
+            throw new Error('No cover page selected');
+        }
+        
+        // Use standard dimensions for side-by-side export
+        const baseWidth = 1200;
+        const baseHeight = 800;
+        
+        console.log('Base dimensions:', baseWidth, 'x', baseHeight);
+        
+        // Create high-resolution export canvas
+        const exportCanvas = document.createElement('canvas');
+        const context = exportCanvas.getContext('2d');
+        
+        exportCanvas.width = baseWidth * scaleFactor;
+        exportCanvas.height = baseHeight * scaleFactor;
+        
+        console.log('Export canvas dimensions:', exportCanvas.width, 'x', exportCanvas.height);
+        
+        // Scale the drawing context
+        context.scale(scaleFactor, scaleFactor);
+        
+        // Render the side-by-side composition
+        await this.renderSideBySideToCanvas(context, baseWidth, baseHeight);
+        
+        console.log('Side-by-side export canvas created successfully');
+        return exportCanvas;
+    }
+
     async exportCompositionToPDF() {
         if (typeof PDFLib === 'undefined') {
             throw new Error('PDF-lib library not loaded');
