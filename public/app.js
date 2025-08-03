@@ -2836,6 +2836,10 @@ const loadingTimeout = setTimeout(() => {
                 viewport: scaledViewport
             }).promise;
             
+            // Fill canvas with white background first to avoid transparency issues
+            context.fillStyle = 'white';
+            context.fillRect(0, 0, canvasWidth, canvasHeight);
+            
             // Calculate centering offsets
             const offsetX = (canvasWidth - scaledViewport.width) / 2;
             const offsetY = (canvasHeight - scaledViewport.height) / 2;
