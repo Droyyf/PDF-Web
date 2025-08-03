@@ -2157,7 +2157,7 @@ const loadingTimeout = setTimeout(() => {
         }
 
         try {
-            console.log('=== CALLING CREATE EXPORT CANVAS ===');
+            console.log('=== CALLING CREATE COMPOSITION CANVAS ===');
             // Create a composite canvas that includes both background and cover
             // Use different scales for different formats - enhanced for maximum quality
             let scale = 3; // Default high scale
@@ -2165,7 +2165,7 @@ const loadingTimeout = setTimeout(() => {
             if (format === 'jpeg') scale = 3; // High quality for JPEG  
             if (format === 'pdf') scale = 4; // Maximum quality for PDF
             
-            const exportCanvas = await this.createExportCanvas(scale);
+            const exportCanvas = await this.createCompositionCanvas(scale);
             console.log('=== EXPORT CANVAS CREATED SUCCESSFULLY ===');
             
             if (!exportCanvas) {
