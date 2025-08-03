@@ -4498,7 +4498,9 @@ const loadingTimeout = setTimeout(() => {
         }
     }
 
-    async createNewSideBySideExportCanvas(scale = 4) {
+    async createNewSideBySideExportCanvas(exportScale = 4) {
+        console.log('CREATING SIDE BY SIDE EXPORT CANVAS');
+        
         const citationPageIndices = Array.from(this.selectedCitations).sort((a, b) => a - b);
         const coverPageIndex = this.selectedCover;
         
@@ -4506,25 +4508,13 @@ const loadingTimeout = setTimeout(() => {
             throw new Error('Missing citation or cover selection for export');
         }
         
-        // Load pages
+        // Load all pages - same as preview
         const citationPages = [];
         const citationViewports = [];
         
         for (const pageIndex of citationPageIndices) {
             const page = await this.currentPDF.getPage(pageIndex + 1);
             const viewport = page.getViewport({ scale: 1 });
-            
-            // Validate citation viewport
-            if (!viewport) {
-                throw new Error(`Citation page ${pageIndex + 1} viewport is null or undefined`);
-            }
-            if (typeof viewport.width !== 'number' || isNaN(viewport.width) || viewport.width <= 0) {
-                throw new Error(`Invalid citation viewport width for page ${pageIndex + 1}: ${viewport.width}`);
-            }
-            if (typeof viewport.height !== 'number' || isNaN(viewport.height) || viewport.height <= 0) {
-                throw new Error(`Invalid citation viewport height for page ${pageIndex + 1}: ${viewport.height}`);
-            }
-            
             citationPages.push(page);
             citationViewports.push(viewport);
         }
@@ -4532,25 +4522,53 @@ const loadingTimeout = setTimeout(() => {
         const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
         const coverViewport = coverPage.getViewport({ scale: 1 });
         
-        // Validate cover viewport
-        if (!coverViewport) {
-            throw new Error('Cover viewport is null or undefined');
-        }
-        if (typeof coverViewport.width !== 'number' || isNaN(coverViewport.width) || coverViewport.width <= 0) {
-            throw new Error(`Invalid cover viewport width: ${coverViewport.width}`);
-        }
-        if (typeof coverViewport.height !== 'number' || isNaN(coverViewport.height) || coverViewport.height <= 0) {
-            throw new Error(`Invalid cover viewport height: ${coverViewport.height}`);
-        }
+        // Use EXACT same scaling logic as preview
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
         
-        // Calculate dimensions for side-by-side layout
-        const maxCitationWidth = Math.max(...citationViewports.map(v => v.width));
-        const maxCitationHeight = Math.max(...citationViewports.map(v => v.height));
-        const totalWidth = maxCitationWidth + coverViewport.width;
-        const maxHeight = Math.max(maxCitationHeight, coverViewport.height);
+        // Reserve space for header and controls (estimated) - same as preview
+        const headerHeight = 120;
+        const padding = 40;
         
-        const canvasWidth = totalWidth * scale;
-        const canvasHeight = maxHeight * scale;
+        const maxContainerWidth = viewportWidth - padding * 2;
+        const maxContainerHeight = viewportHeight - headerHeight - padding;
+        
+        const numCitationPages = citationPages.length;
+        
+        // Calculate responsive scaling to fit viewport perfectly - same as preview
+        const citationAspectRatios = citationViewports.map(vp => vp.width / vp.height);
+        const coverAspectRatio = coverViewport.width / coverViewport.height;
+        
+        // Calculate total width needed for citation pages - same as preview
+        const totalCitationWidth = citationViewports.reduce((sum, vp) => sum + vp.width, 0);
+        const combinedContentWidth = totalCitationWidth + coverViewport.width;
+        
+        // Calculate height ratios to determine optimal layout - same as preview
+        const citationMaxHeight = Math.max(...citationViewports.map(vp => vp.height));
+        const coverHeight = coverViewport.height;
+        const maxContentHeight = Math.max(citationMaxHeight, coverHeight);
+        
+        // Find optimal scale to fit within viewport - same as preview
+        let optimalScale = 1;
+        
+        // Width-based scaling
+        const widthScale = maxContainerWidth / combinedContentWidth;
+        
+        // Height-based scaling  
+        const heightScale = maxContainerHeight / maxContentHeight;
+        
+        // Use the smaller scale to ensure everything fits
+        optimalScale = Math.min(widthScale, heightScale, 1.0);
+        
+        // Calculate final dimensions - same as preview
+        const citationSectionWidth = citationViewports.reduce((sum, vp) => sum + (vp.width * optimalScale), 0);
+        const coverSectionWidth = coverViewport.width * optimalScale;
+        const contentHeight = maxContentHeight * optimalScale;
+        
+        // Set canvas dimensions to match preview exactly, but scaled up for export
+        const totalWidth = citationSectionWidth + coverSectionWidth;
+        const canvasWidth = totalWidth * exportScale;
+        const canvasHeight = contentHeight * exportScale;
         
         // Create export canvas
         const exportCanvas = document.createElement('canvas');
@@ -4561,93 +4579,63 @@ const loadingTimeout = setTimeout(() => {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, canvasWidth, canvasHeight);
         
-        // Calculate side-by-side layout
-        const halfWidth = canvasWidth / 2;
+        // Render citation pages with responsive scaling - same logic as preview
+        let currentX = 0;
+        const citationWidth = (citationSectionWidth * exportScale) / numCitationPages;
         
-        // Debug: Add colored background to citation area (left half)
-        context.fillStyle = '#f0f0f0';
-        context.fillRect(0, 0, halfWidth, canvasHeight);
-        
-        // Reset fill style
-        context.fillStyle = '#ffffff';
-        
-        // Render citation pages (left side)
-        if (citationPageIndices.length === 1) {
-            const citationScale = Math.min(halfWidth / citationViewports[0].width, canvasHeight / citationViewports[0].height);
-            const scaledCitationViewport = citationPages[0].getViewport({ scale: citationScale });
-            const citationX = (halfWidth - scaledCitationViewport.width) / 2;
-            const citationY = (canvasHeight - scaledCitationViewport.height) / 2;
+        for (let i = 0; i < citationPages.length; i++) {
+            const page = citationPages[i];
+            const viewport = citationViewports[i];
+            const pageIndex = citationPageIndices[i];
             
-            console.log('Citation rendering debug:');
-            console.log('- Citation scale:', citationScale);
-            console.log('- Scaled citation viewport:', scaledCitationViewport);
-            console.log('- Citation position:', { x: citationX, y: citationY });
-            console.log('- Half width:', halfWidth);
-            console.log('- Canvas dimensions:', { width: canvasWidth, height: canvasHeight });
+            // Use optimal responsive scale multiplied by export scale
+            const finalScale = optimalScale * exportScale;
             
-            await citationPages[0].render({
+            const scaledWidth = viewport.width * finalScale;
+            const scaledHeight = viewport.height * finalScale;
+            
+            // Position to fill exactly - same as preview
+            const pageX = currentX;
+            const pageY = 0; // Top-aligned
+            
+            console.log(`Exporting citation page ${pageIndex + 1} at scale ${finalScale.toFixed(3)}`);
+            context.save();
+            context.translate(pageX, pageY);
+            await page.render({
                 canvasContext: context,
-                viewport: citationPages[0].getViewport({ scale: citationScale }),
-                transform: [1, 0, 0, 1, citationX, citationY]
+                viewport: page.getViewport({ scale: finalScale })
             }).promise;
+            context.restore();
             
-            console.log('Citation rendering completed');
-        } else {
-            // Multiple citations - stack vertically
-            const availableHeight = canvasHeight / citationPageIndices.length;
-            
-            console.log('Multiple citations rendering debug:');
-            console.log('- Available height per citation:', availableHeight);
-            console.log('- Number of citations:', citationPages.length);
-            
-            for (let i = 0; i < citationPages.length; i++) {
-                const citationScale = Math.min(halfWidth / citationViewports[i].width, availableHeight / citationViewports[i].height);
-                const scaledCitationViewport = citationPages[i].getViewport({ scale: citationScale });
-                
-                const citationX = (halfWidth - scaledCitationViewport.width) / 2;
-                const citationY = (availableHeight * i) + (availableHeight - scaledCitationViewport.height) / 2;
-                
-                console.log(`Citation ${i + 1} debug:`);
-                console.log('- Citation scale:', citationScale);
-                console.log('- Scaled citation viewport:', scaledCitationViewport);
-                console.log('- Citation position:', { x: citationX, y: citationY });
-                
-                await citationPages[i].render({
-                    canvasContext: context,
-                    viewport: citationPages[i].getViewport({ scale: citationScale }),
-                    transform: [1, 0, 0, 1, citationX, citationY]
-                }).promise;
-                
-                console.log(`Citation ${i + 1} rendering completed`);
-            }
+            currentX += citationWidth;
         }
         
-        // Render cover page (right side)
-        const coverScale = Math.min(halfWidth / coverViewport.width, canvasHeight / coverViewport.height);
-        const scaledCoverViewport = coverPage.getViewport({ scale: coverScale });
+        // Render cover page with responsive scaling - same logic as preview
+        const finalCoverScale = optimalScale * exportScale;
         
-        const coverX = halfWidth + (halfWidth - scaledCoverViewport.width) / 2;
-        const coverY = (canvasHeight - scaledCoverViewport.height) / 2;
+        const scaledCoverWidth = coverViewport.width * finalCoverScale;
+        const scaledCoverHeight = coverViewport.height * finalCoverScale;
         
+        // Position to fill the allocated space - same as preview
+        const coverX = citationSectionWidth * exportScale;
+        const coverY = 0; // Top-aligned
+        
+        console.log(`Exporting cover page ${coverPageIndex + 1} at scale ${finalCoverScale.toFixed(3)}`);
+        context.save();
+        context.translate(coverX, coverY);
         await coverPage.render({
             canvasContext: context,
-            viewport: coverPage.getViewport({ scale: coverScale }),
-            transform: [1, 0, 0, 1, coverX, coverY]
+            viewport: coverPage.getViewport({ scale: finalCoverScale })
         }).promise;
+        context.restore();
         
-        // Draw separator line
-        context.strokeStyle = '#ddd';
-        context.lineWidth = 2 * scale;
-        context.beginPath();
-        context.moveTo(halfWidth, 0);
-        context.lineTo(halfWidth, canvasHeight);
-        context.stroke();
+        console.log('Side by side export complete with dynamic scaling');
         
         return exportCanvas;
     }
     
-    async createNewCustomOverlayExportCanvas(scale = 4) {
-        console.log('CREATE NEW CUSTOM OVERLAY EXPORT CANVAS');
+    async createNewCustomOverlayExportCanvas(exportScale = 4) {
+        console.log('CREATING CUSTOM OVERLAY EXPORT CANVAS');
         
         const citationPageIndices = Array.from(this.selectedCitations).sort((a, b) => a - b);
         const coverPageIndex = this.selectedCover;
@@ -4656,128 +4644,210 @@ const loadingTimeout = setTimeout(() => {
             throw new Error('Missing citation or cover selection for export');
         }
         
-        // Load first citation page as background
+        // Get all citation pages for multi-citation support - same as preview
         const firstCitationPageIndex = citationPageIndices[0];
-        console.log('Loading citation page:', firstCitationPageIndex + 1);
+        
+        // Get first citation page for canvas sizing - same as preview
         const citationPage = await this.currentPDF.getPage(firstCitationPageIndex + 1);
         const citationViewport = citationPage.getViewport({ scale: 1 });
-        console.log('Citation viewport:', citationViewport);
         
-        // Load cover page
-        console.log('Loading cover page:', coverPageIndex + 1);
-        const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
-        const coverViewport = coverPage.getViewport({ scale: 1 });
-        console.log('Cover viewport:', coverViewport);
+        // Dynamic scaling algorithm for custom overlay mode - EXACT same as preview
+        const citationAspectRatio = citationViewport.width / citationViewport.height;
         
-        // Validate viewport objects and dimensions
-        console.log('Validating viewports in createNewCustomOverlayExportCanvas:');
-        console.log('Citation viewport:', citationViewport);
-        console.log('Cover viewport:', coverViewport);
+        // Get available space with proper margins - same as preview
+        const containerPadding = 40;
+        const availableWidth = Math.min(1200, window.innerWidth - 300 - containerPadding);
+        const availableHeight = Math.min(900, window.innerHeight - 200 - containerPadding);
         
-        if (!citationViewport) {
-            console.error('Citation viewport validation failed: viewport is null or undefined');
-            throw new Error('Citation viewport is null or undefined');
-        }
-        if (typeof citationViewport.width !== 'number' || isNaN(citationViewport.width) || citationViewport.width <= 0) {
-            console.error('Citation viewport width validation failed:', citationViewport.width);
-            throw new Error(`Invalid citation viewport width: ${citationViewport.width}`);
-        }
-        if (typeof citationViewport.height !== 'number' || isNaN(citationViewport.height) || citationViewport.height <= 0) {
-            console.error('Citation viewport height validation failed:', citationViewport.height);
-            throw new Error(`Invalid citation viewport height: ${citationViewport.height}`);
-        }
+        let canvasWidth, canvasHeight;
         
-        if (!coverViewport) {
-            console.error('Cover viewport validation failed: viewport is null or undefined');
-            throw new Error('Cover viewport is null or undefined');
-        }
-        if (typeof coverViewport.width !== 'number' || isNaN(coverViewport.width) || coverViewport.width <= 0) {
-            console.error('Cover viewport width validation failed:', coverViewport.width);
-            throw new Error(`Invalid cover viewport width: ${coverViewport.width}`);
-        }
-        if (typeof coverViewport.height !== 'number' || isNaN(coverViewport.height) || coverViewport.height <= 0) {
-            console.error('Cover viewport height validation failed:', coverViewport.height);
-            throw new Error(`Invalid cover viewport height: ${coverViewport.height}`);
-        }
+        // Dynamic scaling based on content aspect ratio and available space - same as preview
+        const containerAspectRatio = availableWidth / availableHeight;
         
-        // Calculate viewport-based dimensions for responsive scaling
-        const headerHeight = 120; // Space for header and controls
-        const padding = 40; // Padding around content
-        const controlsHeight = 60; // Space for export button and format
-        
-        const maxContainerWidth = window.innerWidth - (padding * 2);
-        const maxContainerHeight = window.innerHeight - headerHeight - controlsHeight - (padding * 2);
-        
-        // Calculate optimal scale to fit viewport
-        const widthScale = maxContainerWidth / citationViewport.width;
-        const heightScale = maxContainerHeight / citationViewport.height;
-        const optimalScale = Math.min(widthScale, heightScale, 2.5); // Cap at 2.5x for readability
-        
-        // Use calculated scale instead of fixed scale
-        const canvasWidth = citationViewport.width * optimalScale;
-        const canvasHeight = citationViewport.height * optimalScale;
-        
-        // Create export canvas
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = canvasWidth;
-        exportCanvas.height = canvasHeight;
-        
-        const context = exportCanvas.getContext('2d');
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, canvasWidth, canvasHeight);
-        
-        // Render citation page as background
-        await citationPage.render({
-            canvasContext: context,
-            viewport: citationPage.getViewport({ scale: optimalScale })
-        }).promise;
-        
-        // Get cover overlay position and size from preview (if available)
-        const coverOverlay = document.querySelector('.cover-overlay');
-        let coverX = canvasWidth * 0.75; // Default to 75% position
-        let coverY = canvasHeight * 0.75; // Default to 75% position
-        let coverWidth = canvasWidth * 0.25; // Default to 25% size
-        let coverHeight = (coverWidth / coverViewport.width) * coverViewport.height;
-        
-        if (coverOverlay) {
-            // Get position from preview overlay
-            const previewCanvas = document.getElementById('previewCanvas');
-            if (previewCanvas) {
-                const previewRect = previewCanvas.getBoundingClientRect();
-                const overlayRect = coverOverlay.getBoundingClientRect();
-                
-                // Calculate relative position and scale to export canvas
-                const relativeX = (overlayRect.left - previewRect.left) / previewRect.width;
-                const relativeY = (overlayRect.top - previewRect.top) / previewRect.height;
-                const relativeWidth = overlayRect.width / previewRect.width;
-                const relativeHeight = overlayRect.height / previewRect.height;
-                
-                coverX = relativeX * canvasWidth;
-                coverY = relativeY * canvasHeight;
-                coverWidth = relativeWidth * canvasWidth;
-                coverHeight = relativeHeight * canvasHeight;
+        if (citationAspectRatio > containerAspectRatio) {
+            // Content is wider relative to container - fit to width
+            canvasWidth = availableWidth;
+            canvasHeight = canvasWidth / citationAspectRatio;
+            
+            // Ensure minimum height for readability
+            const minHeight = Math.min(400, availableHeight * 0.5);
+            if (canvasHeight < minHeight) {
+                canvasHeight = minHeight;
+                canvasWidth = canvasHeight * citationAspectRatio;
+            }
+        } else {
+            // Content is taller relative to container - fit to height
+            canvasHeight = availableHeight;
+            canvasWidth = canvasHeight * citationAspectRatio;
+            
+            // Ensure minimum width for readability
+            const minWidth = Math.min(600, availableWidth * 0.5);
+            if (canvasWidth < minWidth) {
+                canvasWidth = minWidth;
+                canvasHeight = canvasWidth / citationAspectRatio;
             }
         }
         
-        // Ensure overlay maintains reasonable proportions on different screen sizes
-        const maxCoverWidth = canvasWidth * 0.4; // Max 40% of canvas width
-        const minCoverWidth = canvasWidth * 0.15; // Min 15% of canvas width
-        coverWidth = Math.max(minCoverWidth, Math.min(maxCoverWidth, coverWidth));
-        coverHeight = (coverWidth / coverViewport.width) * coverViewport.height;
+        // Final constraint check to ensure canvas fits in available space - same as preview
+        if (canvasWidth > availableWidth) {
+            canvasWidth = availableWidth;
+            canvasHeight = canvasWidth / citationAspectRatio;
+        }
+        if (canvasHeight > availableHeight) {
+            canvasHeight = availableHeight;
+            canvasWidth = canvasHeight * citationAspectRatio;
+        }
         
-        // Ensure cover stays within bounds
-        coverX = Math.max(0, Math.min(coverX, canvasWidth - coverWidth));
-        coverY = Math.max(0, Math.min(coverY, canvasHeight - coverHeight));
+        // Scale up for export while maintaining preview proportions
+        const exportCanvasWidth = canvasWidth * exportScale;
+        const exportCanvasHeight = canvasHeight * exportScale;
         
-        // Render cover overlay
-        const coverScale = coverWidth / coverViewport.width;
+        console.log('Export canvas dimensions set to:', exportCanvasWidth, 'x', exportCanvasHeight);
         
-        await coverPage.render({
-            canvasContext: context,
-            viewport: coverPage.getViewport({ scale: coverScale }),
-            transform: [1, 0, 0, 1, coverX, coverY]
-        }).promise;
+        // Create export canvas
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = exportCanvasWidth;
+        exportCanvas.height = exportCanvasHeight;
         
+        const context = exportCanvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, exportCanvasWidth, exportCanvasHeight);
+        
+        // Render all citation pages (background) - same logic as preview
+        if (citationPageIndices.length === 1) {
+            // Single citation - render full canvas - same as preview
+            const citationScale = (canvasWidth / citationViewport.width) * exportScale;
+            const scaledCitationViewport = citationPage.getViewport({ scale: citationScale });
+            
+            console.log('Exporting single citation page', firstCitationPageIndex + 1);
+            await citationPage.render({
+                canvasContext: context,
+                viewport: scaledCitationViewport
+            }).promise;
+        } else {
+            // Multiple citations - render side by side with dynamic scaling - same as preview
+            const numPages = citationPageIndices.length;
+            const padding = 10 * exportScale; // Scale padding for export
+            const totalPadding = padding * (numPages - 1);
+            const availableWidthForPages = exportCanvasWidth - totalPadding;
+            
+            // Calculate optimal width allocation based on page aspect ratios - same as preview
+            const pageAspectRatios = [];
+            const pageViewports = [];
+            
+            // First pass: get all viewports and aspect ratios - same as preview
+            for (let i = 0; i < numPages; i++) {
+                const pageIndex = citationPageIndices[i];
+                const page = await this.currentPDF.getPage(pageIndex + 1);
+                const viewport = page.getViewport({ scale: 1 });
+                pageViewports.push({ page, viewport });
+                pageAspectRatios.push(viewport.width / viewport.height);
+            }
+            
+            // Calculate width allocation based on aspect ratios - same as preview
+            const totalAspectRatio = pageAspectRatios.reduce((sum, ratio) => sum + ratio, 0);
+            const pageWidths = pageAspectRatios.map(ratio => 
+                (ratio / totalAspectRatio) * availableWidthForPages
+            );
+            
+            let currentX = 0;
+            
+            // Second pass: render pages with calculated dimensions - same as preview
+            for (let i = 0; i < numPages; i++) {
+                const { page, viewport } = pageViewports[i];
+                const pageWidth = pageWidths[i];
+                
+                // Calculate scale to fit optimally in allocated space - same as preview
+                const scaleByWidth = pageWidth / viewport.width;
+                const scaleByHeight = exportCanvasHeight / viewport.height;
+                const scale = Math.min(scaleByWidth, scaleByHeight);
+                
+                const scaledWidth = viewport.width * scale;
+                const scaledHeight = viewport.height * scale;
+                
+                // Center in allocated space - same as preview
+                const pageX = currentX + (pageWidth - scaledWidth) / 2;
+                const pageY = (exportCanvasHeight - scaledHeight) / 2;
+                
+                console.log(`Exporting citation page ${citationPageIndices[i] + 1} at scale ${scale}`);
+                context.save();
+                context.translate(pageX, pageY);
+                await page.render({
+                    canvasContext: context,
+                    viewport: page.getViewport({ scale })
+                }).promise;
+                context.restore();
+                
+                currentX += pageWidth + padding;
+                
+                // Clean up page reference
+                if (page !== citationPage) {
+                    page.cleanup();
+                }
+            }
+        }
+        
+        console.log('Citation pages rendered, setting up cover overlay for export');
+        
+        // Set up cover overlay only if cover is selected - same as preview
+        if (this.selectedCover !== null) {
+            // Load cover page
+            const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
+            const coverViewport = coverPage.getViewport({ scale: 1 });
+            
+            // Get cover overlay position and size from preview (if available)
+            const coverOverlay = document.querySelector('.cover-overlay');
+            let coverX = canvasWidth * 0.75; // Default to 75% position
+            let coverY = canvasHeight * 0.75; // Default to 75% position
+            let coverWidth = canvasWidth * 0.25; // Default to 25% size
+            let coverHeight = (coverWidth / coverViewport.width) * coverViewport.height;
+        
+            if (coverOverlay) {
+                // Get position from preview overlay
+                const previewCanvas = document.getElementById('previewCanvas');
+                if (previewCanvas) {
+                    const previewRect = previewCanvas.getBoundingClientRect();
+                    const overlayRect = coverOverlay.getBoundingClientRect();
+                    
+                    // Calculate relative position and scale to export canvas
+                    const relativeX = (overlayRect.left - previewRect.left) / previewRect.width;
+                    const relativeY = (overlayRect.top - previewRect.top) / previewRect.height;
+                    const relativeWidth = overlayRect.width / previewRect.width;
+                    const relativeHeight = overlayRect.height / previewRect.height;
+                    
+                    coverX = relativeX * exportCanvasWidth;
+                    coverY = relativeY * exportCanvasHeight;
+                    coverWidth = relativeWidth * exportCanvasWidth;
+                    coverHeight = relativeHeight * exportCanvasHeight;
+                }
+            }
+            
+            // Ensure overlay maintains reasonable proportions on different screen sizes
+            const maxCoverWidth = exportCanvasWidth * 0.4; // Max 40% of canvas width
+            const minCoverWidth = exportCanvasWidth * 0.15; // Min 15% of canvas width
+            coverWidth = Math.max(minCoverWidth, Math.min(maxCoverWidth, coverWidth));
+            coverHeight = (coverWidth / coverViewport.width) * coverViewport.height;
+            
+            // Ensure cover stays within bounds
+            coverX = Math.max(0, Math.min(coverX, exportCanvasWidth - coverWidth));
+            coverY = Math.max(0, Math.min(coverY, exportCanvasHeight - coverHeight));
+            
+            // Scale cover dimensions for export
+            const coverScale = (coverWidth / coverViewport.width);
+            
+            console.log('Exporting cover overlay at position:', coverX, coverY, 'size:', coverWidth, 'x', coverHeight);
+            
+            // Apply transform and render cover
+            context.save();
+            context.translate(coverX, coverY);
+            await coverPage.render({
+                canvasContext: context,
+                viewport: coverPage.getViewport({ scale: coverScale })
+            }).promise;
+            context.restore();
+        }
+        
+        console.log('Custom overlay export completed');
         return exportCanvas;
     }
 
