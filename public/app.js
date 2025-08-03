@@ -2402,8 +2402,35 @@ const loadingTimeout = setTimeout(() => {
     }
 
     async createCompositionCanvas(scaleFactor = 2) {
-        if (!this.currentPDF || this.selectedCitations.size === 0 || this.selectedCover === null) {
-            throw new Error('Invalid composition state');
+        console.log('=== CREATING COMPOSITION CANVAS ===');
+        console.log('Current PDF:', this.currentPDF);
+        console.log('Selected citations:', this.selectedCitations);
+        console.log('Selected cover:', this.selectedCover);
+        
+        if (!this.currentPDF) {
+            throw new Error('No PDF document loaded');
+        }
+        
+        if (!this.selectedCitations || this.selectedCitations.size === 0) {
+            throw new Error('No citation pages selected');
+        }
+        
+        if (this.selectedCover === null || this.selectedCover === undefined) {
+            throw new Error('No cover page selected');
+        }
+        
+        // Validate selected pages are within document bounds
+        const numPages = this.currentPDF.numPages;
+        console.log('Total PDF pages:', numPages);
+        
+        for (const pageIndex of this.selectedCitations) {
+            if (pageIndex < 0 || pageIndex >= numPages) {
+                throw new Error(`Invalid citation page index: ${pageIndex} (valid range: 0-${numPages-1})`);
+            }
+        }
+        
+        if (this.selectedCover < 0 || this.selectedCover >= numPages) {
+            throw new Error(`Invalid cover page index: ${this.selectedCover} (valid range: 0-${numPages-1})`);
         }
 
         // Get the preview canvas dimensions as base
@@ -2465,12 +2492,20 @@ const loadingTimeout = setTimeout(() => {
 
     async renderPageAsBackground(context, pageIndex, canvasWidth, canvasHeight) {
         try {
+            console.log('Loading background page:', pageIndex + 1);
             const page = await this.currentPDF.getPage(pageIndex + 1);
             const viewport = page.getViewport({ scale: 1 });
+            console.log('Background page viewport:', viewport);
             
             // Validate viewport dimensions
-            if (!viewport || !viewport.width || !viewport.height) {
-                throw new Error('Invalid page viewport dimensions');
+            if (!viewport) {
+                throw new Error(`Background page ${pageIndex + 1} viewport is null or undefined`);
+            }
+            if (typeof viewport.width !== 'number' || isNaN(viewport.width) || viewport.width <= 0) {
+                throw new Error(`Invalid background viewport width for page ${pageIndex + 1}: ${viewport.width}`);
+            }
+            if (typeof viewport.height !== 'number' || isNaN(viewport.height) || viewport.height <= 0) {
+                throw new Error(`Invalid background viewport height for page ${pageIndex + 1}: ${viewport.height}`);
             }
             
             // Calculate scale to fill the canvas while maintaining aspect ratio
@@ -2638,13 +2673,29 @@ const loadingTimeout = setTimeout(() => {
             return;
         }
         
+        if (!this.currentPDF) {
+            throw new Error('No PDF document loaded');
+        }
+        
+        if (this.selectedCover === null || this.selectedCover === undefined) {
+            throw new Error('No cover page selected');
+        }
+        
         try {
+            console.log('Loading cover page for overlay:', this.selectedCover + 1);
             const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
             const viewport = coverPage.getViewport({ scale: 1 });
+            console.log('Cover overlay viewport:', viewport);
             
             // Validate viewport dimensions
-            if (!viewport || !viewport.width || !viewport.height) {
-                throw new Error('Invalid cover page viewport dimensions');
+            if (!viewport) {
+                throw new Error(`Cover overlay page ${this.selectedCover + 1} viewport is null or undefined`);
+            }
+            if (typeof viewport.width !== 'number' || isNaN(viewport.width) || viewport.width <= 0) {
+                throw new Error(`Invalid cover overlay viewport width: ${viewport.width}`);
+            }
+            if (typeof viewport.height !== 'number' || isNaN(viewport.height) || viewport.height <= 0) {
+                throw new Error(`Invalid cover overlay viewport height: ${viewport.height}`);
             }
             
             console.log('Cover page viewport:', viewport.width, 'x', viewport.height);
@@ -4337,14 +4388,41 @@ const loadingTimeout = setTimeout(() => {
         const citationViewports = [];
         
         for (const pageIndex of citationPageIndices) {
+            console.log('Loading citation page:', pageIndex + 1);
             const page = await this.currentPDF.getPage(pageIndex + 1);
             const viewport = page.getViewport({ scale: 1 });
+            console.log('Citation viewport:', viewport);
+            
+            // Validate citation viewport
+            if (!viewport) {
+                throw new Error(`Citation page ${pageIndex + 1} viewport is null or undefined`);
+            }
+            if (typeof viewport.width !== 'number' || isNaN(viewport.width) || viewport.width <= 0) {
+                throw new Error(`Invalid citation viewport width for page ${pageIndex + 1}: ${viewport.width}`);
+            }
+            if (typeof viewport.height !== 'number' || isNaN(viewport.height) || viewport.height <= 0) {
+                throw new Error(`Invalid citation viewport height for page ${pageIndex + 1}: ${viewport.height}`);
+            }
+            
             citationPages.push(page);
             citationViewports.push(viewport);
         }
         
+        console.log('Loading cover page:', coverPageIndex + 1);
         const coverPage = await this.currentPDF.getPage(coverPageIndex + 1);
         const coverViewport = coverPage.getViewport({ scale: 1 });
+        console.log('Cover viewport:', coverViewport);
+        
+        // Validate cover viewport
+        if (!coverViewport) {
+            throw new Error('Cover viewport is null or undefined');
+        }
+        if (typeof coverViewport.width !== 'number' || isNaN(coverViewport.width) || coverViewport.width <= 0) {
+            throw new Error(`Invalid cover viewport width: ${coverViewport.width}`);
+        }
+        if (typeof coverViewport.height !== 'number' || isNaN(coverViewport.height) || coverViewport.height <= 0) {
+            throw new Error(`Invalid cover viewport height: ${coverViewport.height}`);
+        }
         
         // Calculate dimensions - use original PDF page size for export
         const baseWidth = Math.max(...citationViewports.map(v => v.width), coverViewport.width);
