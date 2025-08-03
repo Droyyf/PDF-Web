@@ -2371,8 +2371,15 @@ const loadingTimeout = setTimeout(() => {
             throw new Error('PDF-lib library not loaded');
         }
 
-        // Create high-resolution canvas for the composition
-        const exportCanvas = await this.createCompositionCanvas(2); // 2x scale for PDF
+        // Create high-resolution canvas for the composition using new approach
+        let exportCanvas;
+        const previewMode = this.getPreviewMode();
+        
+        if (previewMode === 'sidebyside') {
+            exportCanvas = await this.createNewSideBySideExportCanvas(2); // 2x scale for PDF
+        } else {
+            exportCanvas = await this.createNewCustomOverlayExportCanvas(2); // 2x scale for PDF
+        }
         
         // Convert canvas to image data
         const imageData = exportCanvas.toDataURL('image/png');
@@ -2380,7 +2387,7 @@ const loadingTimeout = setTimeout(() => {
         
         // Create PDF document
         const pdfDoc = await PDFLib.PDFDocument.create();
-        const page = pdfDoc.addPage([exportCanvas.width / 2, exportCanvas.height / 2]);
+        const page = pdfDoc.addPage([exportCanvas.width, exportCanvas.height]);
         
         // Embed image
         const image = await pdfDoc.embedPng(imageBytes);
@@ -2400,7 +2407,14 @@ const loadingTimeout = setTimeout(() => {
 
     async exportCompositionToPNG() {
         // Create high-resolution canvas for PNG (3x scale for better quality)
-        const exportCanvas = await this.createCompositionCanvas(3);
+        let exportCanvas;
+        const previewMode = this.getPreviewMode();
+        
+        if (previewMode === 'sidebyside') {
+            exportCanvas = await this.createNewSideBySideExportCanvas(3); // 3x scale for PNG
+        } else {
+            exportCanvas = await this.createNewCustomOverlayExportCanvas(3); // 3x scale for PNG
+        }
         
         // Convert to blob and download
         exportCanvas.toBlob((blob) => {
@@ -2410,7 +2424,14 @@ const loadingTimeout = setTimeout(() => {
 
     async exportCompositionToJPEG() {
         // Create high-resolution canvas for JPEG (2x scale)
-        const exportCanvas = await this.createCompositionCanvas(2);
+        let exportCanvas;
+        const previewMode = this.getPreviewMode();
+        
+        if (previewMode === 'sidebyside') {
+            exportCanvas = await this.createNewSideBySideExportCanvas(2); // 2x scale for JPEG
+        } else {
+            exportCanvas = await this.createNewCustomOverlayExportCanvas(2); // 2x scale for JPEG
+        }
         
         // Convert to blob and download
         exportCanvas.toBlob((blob) => {
