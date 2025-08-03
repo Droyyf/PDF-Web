@@ -5225,14 +5225,23 @@ const loadingTimeout = setTimeout(() => {
         try {
             // Get cover image from thumbnail
             const coverThumbnail = this.thumbnails[this.selectedCover];
+            console.log('🔍 Checking cover thumbnail:', {
+                selectedCover: this.selectedCover,
+                thumbnailExists: !!coverThumbnail,
+                hasBuffer: !!(coverThumbnail && coverThumbnail.buffer),
+                bufferSize: coverThumbnail && coverThumbnail.buffer ? coverThumbnail.buffer.byteLength : 0
+            });
+            
             if (!coverThumbnail || !coverThumbnail.buffer) {
                 console.warn('Cover thumbnail not available');
                 this._setupCoverInProgress = false;
                 return;
             }
 
+            console.log('📋 About to call createCoverCanvas with thumbnail');
             // Create cover canvas and render the cover page
             await this.createCoverCanvas(coverThumbnail);
+            console.log('✅ createCoverCanvas completed successfully');
             
             // Position cover initially
             this.resetCoverTransform();
