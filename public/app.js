@@ -2455,20 +2455,33 @@ const loadingTimeout = setTimeout(() => {
         
         // For side-by-side mode, calculate dimensions based on actual PDF pages
         if (this.overlayMode === 'side-by-side') {
-            // Get the first citation page to determine base dimensions
+            // Get citation and cover pages to determine base dimensions
             const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
             const firstCitationPage = await this.currentPDF.getPage(citationPages[0] + 1);
+            const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
             const citationViewport = firstCitationPage.getViewport({ scale: 1 });
+            const coverViewport = coverPage.getViewport({ scale: 1 });
             
             // Calculate optimal scale to fit content nicely
             const targetHeight = 1200; // Standard height for good quality
             const optimalScale = targetHeight / citationViewport.height;
             
-            // Calculate final dimensions
+            // Calculate actual scaled dimensions for both pages
+            const citationScaledWidth = citationViewport.width * optimalScale;
+            const coverScaledWidth = coverViewport.width * optimalScale;
+            
+            // Calculate final canvas dimensions based on 60/40 split
+            // Citation section needs 60% of total width, cover needs 40%
+            // So if citation takes citationScaledWidth in 60%, total width = citationScaledWidth / 0.6
+            const totalWidthBasedOnCitation = citationScaledWidth / 0.6;
+            const totalWidthBasedOnCover = coverScaledWidth / 0.4;
+            
+            // Use the larger of the two to ensure both fit comfortably
+            baseWidth = Math.max(totalWidthBasedOnCitation, totalWidthBasedOnCover);
             baseHeight = targetHeight;
-            baseWidth = citationViewport.width * optimalScale * 2; // Double width for side-by-side
             
             console.log('Side-by-side mode: calculated canvas dimensions', baseWidth, 'x', baseHeight, 'with scale', optimalScale);
+            console.log('Citation scaled width:', citationScaledWidth, 'Cover scaled width:', coverScaledWidth);
         } else {
             // For custom overlay mode, use preview canvas dimensions
             const previewCanvas = document.getElementById('previewCanvas');
