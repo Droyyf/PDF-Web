@@ -4591,12 +4591,12 @@ const loadingTimeout = setTimeout(() => {
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, canvasWidth, canvasHeight);
         
+        // Calculate side-by-side layout
+        const halfWidth = canvasWidth / 2;
+        
         // Debug: Draw colored background for left half
         context.fillStyle = '#f0f0f0';
         context.fillRect(0, 0, halfWidth, canvasHeight);
-        
-        // Calculate side-by-side layout
-        const halfWidth = canvasWidth / 2;
         
         // Render citation pages (left side)
         if (citationPageIndices.length === 1) {
