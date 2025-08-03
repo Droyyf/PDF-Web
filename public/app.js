@@ -2453,8 +2453,15 @@ const loadingTimeout = setTimeout(() => {
 
         // Get the preview canvas dimensions as base
         const previewCanvas = document.getElementById('previewCanvas');
-        const baseWidth = previewCanvas ? previewCanvas.width : 800;
-        const baseHeight = previewCanvas ? previewCanvas.height : 1131;
+        let baseWidth = previewCanvas ? previewCanvas.width : 800;
+        let baseHeight = previewCanvas ? previewCanvas.height : 1131;
+        
+        // For side-by-side mode, adjust canvas dimensions
+        if (this.overlayMode === 'side-by-side') {
+            // Double the width for side-by-side layout, keep same height
+            baseWidth = baseWidth * 2;
+            console.log('Side-by-side mode: adjusted canvas dimensions to', baseWidth, 'x', baseHeight);
+        }
         
         // Create high-resolution export canvas
         const exportCanvas = document.createElement('canvas');
@@ -2472,13 +2479,38 @@ const loadingTimeout = setTimeout(() => {
         // Render the composition based on overlay mode
         if (this.overlayMode === 'side-by-side') {
             console.log('Rendering side-by-side composition for export');
-            await this.renderCompositionToCanvas(context, baseWidth, baseHeight);
+            await this.renderSideBySideToCanvas(context, baseWidth, baseHeight);
         } else {
             console.log('Rendering custom overlay composition for export');
             await this.renderCompositionWithCustomCover(context, baseWidth, baseHeight);
         }
         
         return exportCanvas;
+    }
+
+    async renderSideBySideToCanvas(context, canvasWidth, canvasHeight) {
+        console.log('Rendering side-by-side layout to canvas with dimensions:', canvasWidth, 'x', canvasHeight);
+        
+        // Clear canvas with white background
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvasWidth, canvasHeight);
+        
+        // Get the first selected citation page
+        const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
+        const citationPageIndex = citationPages[0];
+        
+        // Calculate dimensions for each half - no gaps
+        const halfWidth = canvasWidth / 2;
+        
+        console.log('Rendering citation page', citationPageIndex, 'on left half (0, 0,', halfWidth, ',', canvasHeight, ')');
+        // Render citation page on the left half
+        await this.renderPageToCanvas(context, citationPageIndex, 0, 0, halfWidth, canvasHeight);
+        
+        console.log('Rendering cover page', this.selectedCover, 'on right half (', halfWidth, ', 0,', halfWidth, ',', canvasHeight, ')');
+        // Render cover page on the right half
+        await this.renderPageToCanvas(context, this.selectedCover, halfWidth, 0, halfWidth, canvasHeight);
+        
+        console.log('Side-by-side rendering complete');
     }
 
     async renderCompositionWithCustomCover(context, canvasWidth, canvasHeight) {
@@ -3294,6 +3326,12 @@ const loadingTimeout = setTimeout(() => {
     async renderCompositionToCanvas(context, canvasWidth, canvasHeight) {
         if (!this.currentPDF || this.selectedCitations.size === 0) return;
 
+        // Check if this is side-by-side mode
+        if (this.overlayMode === 'side-by-side' && this.selectedCover !== null) {
+            await this.renderSideBySideToCanvas(context, canvasWidth, canvasHeight);
+            return;
+        }
+
         // Clear canvas
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -3425,6 +3463,48 @@ const loadingTimeout = setTimeout(() => {
                 console.log('Cover rendered using fallback method at:', canvasX, canvasY);
             }
         }
+    }
+
+    async renderSideBySideToCanvas(context, canvasWidth, canvasHeight) {
+        if (!this.currentPDF || this.selectedCitations.size === 0 || this.selectedCover === null) return;
+
+        console.log('=== SIDE-BY-SIDE EXPORT DEBUG ===');
+        console.log('Canvas dimensions:', canvasWidth, 'x', canvasHeight);
+
+        // Clear canvas with white background
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        // Get the first citation page (assuming single citation for side-by-side)
+        const citationPages = Array.from(this.selectedCitations).sort((a, b) => a - b);
+        const citationPageIndex = citationPages[0];
+        
+        // Get page dimensions to maintain aspect ratio
+        const citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
+        const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
+        
+        const citationViewport = citationPage.getViewport({ scale: 1 });
+        const coverViewport = coverPage.getViewport({ scale: 1 });
+        
+        console.log('Citation viewport:', citationViewport.width, 'x', citationViewport.height);
+        console.log('Cover viewport:', coverViewport.width, 'x', coverViewport.height);
+        
+        // Calculate dimensions for side-by-side layout
+        // Each image takes half the canvas width, full height
+        const imageWidth = canvasWidth / 2;
+        const imageHeight = canvasHeight;
+        
+        console.log('Target image dimensions:', imageWidth, 'x', imageHeight);
+        
+        // Render citation on the left side
+        await this.renderPageToCanvas(context, citationPageIndex, 0, 0, imageWidth, imageHeight);
+        console.log('Citation rendered at: 0, 0');
+        
+        // Render cover on the right side
+        await this.renderPageToCanvas(context, this.selectedCover, imageWidth, 0, imageWidth, imageHeight);
+        console.log('Cover rendered at:', imageWidth, ', 0');
+        
+        console.log('=== SIDE-BY-SIDE EXPORT COMPLETE ===');
     }
 
     updateTechnicalInfo(text, pageCount = null) {
