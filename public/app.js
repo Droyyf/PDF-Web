@@ -3124,12 +3124,12 @@ const loadingTimeout = setTimeout(() => {
             console.log('Current overlay mode:', this.overlayMode);
             
             // Get the first citation page to determine original dimensions
-            const citationPageIndex = Array.from(this.selectedCitations)[0];
-            if (!citationPageIndex && this.selectedCover === null) {
+            const firstCitationPageIndex = Array.from(this.selectedCitations)[0];
+            if (!firstCitationPageIndex && this.selectedCover === null) {
                 throw new Error('No citation or cover page selected');
             }
             
-            let referencePage = citationPageIndex !== undefined ? citationPageIndex : this.selectedCover;
+            let referencePage = firstCitationPageIndex !== undefined ? firstCitationPageIndex : this.selectedCover;
             const page = await this.currentPDF.getPage(referencePage + 1);
             const originalViewport = page.getViewport({ scale: 1 });
             
@@ -3141,96 +3141,76 @@ const loadingTimeout = setTimeout(() => {
             exportCanvas.height = originalViewport.height;
             
             const exportContext = exportCanvas.getContext('2d');
+            
+            // Handle differently based on overlay mode
+            if (this.overlayMode === 'sidebyside') {
+                console.log('Creating export canvas for side-by-side mode with original dimensions');
                 
-                // Handle differently based on overlay mode
-                if (this.overlayMode === 'sidebyside') {
-                    console.log('Creating export canvas for side-by-side mode with original dimensions');
-                    
-                    // For side-by-side mode, render at original PDF dimensions
-                    await this.renderSideBySideExport(exportContext, originalViewport.width, originalViewport.height);
-                    
-                    return exportCanvas;
+                // For side-by-side mode, render at original PDF dimensions
+                await this.renderSideBySideExport(exportContext, originalViewport.width, originalViewport.height);
+                
+                return exportCanvas;
+            }
+            
+            // For custom overlay mode, render citation page at original size
+            console.log('Re-rendering citation page at original dimensions for export');
+            
+            // Get first citation page
+            let citationPage = null;
+            
+            try {
+                citationPage = await this.currentPDF.getPage(firstCitationPageIndex + 1);
+                
+                // Render citation page directly to export canvas at original resolution
+                await citationPage.render({
+                    canvasContext: exportContext,
+                    viewport: originalViewport
+                }).promise;
+            } finally {
+                // Clean up citation page reference
+                if (citationPage) {
+                    citationPage.cleanup();
                 }
+            }
+            
+            // Draw the interactive cover on top if it exists and is visible
+            const coverContainer = document.getElementById('coverImageContainer');
+            const coverCanvas = document.getElementById('coverCanvas');
+            
+            if (coverContainer && coverCanvas && !coverContainer.classList.contains('hidden')) {
+                console.log('Re-rendering cover at high resolution for export');
+                console.log('Cover position:', this.coverTransform.x, this.coverTransform.y, 'scale:', this.coverTransform.scale);
                 
-                // For custom overlay mode, render citation page at original size
-                console.log('Re-rendering citation page at original dimensions for export');
+                // Convert from container coordinates to citation page relative coordinates for export
+                const previewCanvasContainer = document.querySelector('.preview-canvas-container');
+                const canvasRect = previewCanvas.getBoundingClientRect();
+                const containerRect = previewCanvasContainer.getBoundingClientRect();
                 
-                // Get first citation page
-                const citationPageIndex = Array.from(this.selectedCitations)[0];
-                let citationPage = null;
+                // Calculate citation page bounds in container coordinates
+                const citationLeft = canvasRect.left - containerRect.left;
+                const citationTop = canvasRect.top - containerRect.top;
                 
-                try {
-                    citationPage = await this.currentPDF.getPage(citationPageIndex + 1);
-                    
-                    // Use original PDF dimensions (scale=1)
-                    const originalViewport = citationPage.getViewport({ scale: 1 });
-                    
-                    console.log('Rendering citation page at original dimensions:', {
-                        width: originalViewport.width,
-                        height: originalViewport.height
-                    });
-                    
-                    // Render citation page directly to export canvas at original resolution
-                    await citationPage.render({
-                        canvasContext: exportContext,
-                        viewport: originalViewport
-                    }).promise;
-                } finally {
-                    // Clean up citation page reference
-                    if (citationPage) {
-                        citationPage.cleanup();
-                    }
-                }
+                // Convert cover position from container coordinates to citation page relative coordinates
+                const citationRelativeX = this.coverTransform.x - citationLeft;
+                const citationRelativeY = this.coverTransform.y - citationTop;
                 
-                // Draw the interactive cover on top if it exists and is visible
-                const coverContainer = document.getElementById('coverImageContainer');
-                const coverCanvas = document.getElementById('coverCanvas');
+                // Re-render cover page at original dimensions
+                const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
+                const coverOriginalViewport = coverPage.getViewport({ scale: 1 });
                 
-                if (coverContainer && coverCanvas && !coverContainer.classList.contains('hidden')) {
-                    console.log('Re-rendering cover at high resolution for export');
-                    console.log('Cover position:', this.coverTransform.x, this.coverTransform.y, 'scale:', this.coverTransform.scale);
-                    
-                    // Convert from container coordinates to citation page relative coordinates for export
-                    const previewCanvasContainer = document.querySelector('.preview-canvas-container');
-                    const canvasRect = previewCanvas.getBoundingClientRect();
-                    const containerRect = previewCanvasContainer.getBoundingClientRect();
-                    
-                    // Calculate citation page bounds in container coordinates (same as constraint logic)
-                    const citationLeft = canvasRect.left - containerRect.left;
-                    const citationTop = canvasRect.top - containerRect.top;
-                    
-                    // Convert cover position from container coordinates to citation page relative coordinates
-                    const citationRelativeX = this.coverTransform.x - citationLeft;
-                    const citationRelativeY = this.coverTransform.y - citationTop;
-                    
-                    // Re-render cover page at original dimensions
-                    const coverPage = await this.currentPDF.getPage(this.selectedCover + 1);
-                    const coverOriginalViewport = coverPage.getViewport({ scale: 1 });
-                    
-                    // Calculate relative positions and sizes based on original PDF dimensions
-                    const previewCanvasContainer = document.querySelector('.preview-canvas-container');
-                    const canvasRect = previewCanvas.getBoundingClientRect();
-                    const containerRect = previewCanvasContainer.getBoundingClientRect();
-                    
-                    // Calculate scale factors between preview and original dimensions
-                    const scaleX = originalViewport.width / previewCanvas.width;
-                    const scaleY = originalViewport.height / previewCanvas.height;
-                    
-                    // Convert cover position and size from preview to original dimensions
-                    const citationLeft = canvasRect.left - containerRect.left;
-                    const citationTop = canvasRect.top - containerRect.top;
-                    
-                    const citationRelativeX = this.coverTransform.x - citationLeft;
-                    const citationRelativeY = this.coverTransform.y - citationTop;
-                    
-                    const originalCoverX = citationRelativeX * scaleX;
-                    const originalCoverY = citationRelativeY * scaleY;
-                    
-                    // Calculate cover dimensions in original PDF space
-                    const previewCoverWidth = parseFloat(coverContainer.style.width) || coverContainer.offsetWidth;
-                    const previewCoverHeight = parseFloat(coverContainer.style.height) || coverContainer.offsetHeight;
-                    const originalCoverWidth = previewCoverWidth * scaleX;
-                    const originalCoverHeight = previewCoverHeight * scaleY;
+                // Calculate scale factors between preview and original dimensions
+                const scaleX = originalViewport.width / previewCanvas.width;
+                const scaleY = originalViewport.height / previewCanvas.height;
+                
+                // Convert cover position and size from preview to original dimensions
+                const originalCoverX = citationRelativeX * scaleX;
+                const originalCoverY = citationRelativeY * scaleY;
+                
+                // Calculate cover dimensions in original PDF space
+                const previewCoverWidth = parseFloat(coverContainer.style.width) || coverContainer.offsetWidth;
+                const previewCoverHeight = parseFloat(coverContainer.style.height) || coverContainer.offsetHeight;
+                const originalCoverWidth = previewCoverWidth * scaleX;
+                const originalCoverHeight = previewCoverHeight * scaleY;
                     
                     console.log('Original dimensions cover rendering:', {
                         originalDimensions: { width: originalViewport.width, height: originalViewport.height },
