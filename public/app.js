@@ -5283,28 +5283,24 @@ const loadingTimeout = setTimeout(() => {
                 this.coverTransform.originalWidth = img.width;
                 this.coverTransform.originalHeight = img.height;
                 
-                // CRITICAL FIX: Always use the current scale from coverTransform
-                // This prevents cumulative scaling issues on mode switches
-                const currentScale = this.coverTransform.scale;
-                const scaledWidth = img.width * currentScale;
-                const scaledHeight = img.height * currentScale;
-                
-                console.log('CreateCoverCanvas - Scale application:', {
+                console.log('CreateCoverCanvas - Setting up canvas:', {
                     originalSize: { width: img.width, height: img.height },
-                    currentScale: currentScale,
-                    scaledSize: { width: scaledWidth, height: scaledHeight }
+                    scale: this.coverTransform.scale
                 });
                 
-                // Set canvas size
-                coverCanvas.width = scaledWidth;
-                coverCanvas.height = scaledHeight;
+                // Set canvas to original size (no scaling here)
+                coverCanvas.width = img.width;
+                coverCanvas.height = img.height;
                 
-                // Set container size
-                coverContainer.style.width = scaledWidth + 'px';
-                coverContainer.style.height = scaledHeight + 'px';
+                // Set container to original size (scaling will be done via CSS transform)
+                coverContainer.style.width = img.width + 'px';
+                coverContainer.style.height = img.height + 'px';
                 
-                // Draw the image at the calculated scaled size
-                ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
+                // Draw the image at original size
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+                
+                // Apply transform-based positioning and scaling
+                this.updateCoverPosition();
                 
                 resolve();
             };
