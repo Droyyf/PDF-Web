@@ -2423,6 +2423,7 @@ const loadingTimeout = setTimeout(() => {
         console.log('Current PDF:', this.currentPDF);
         console.log('Selected citations:', this.selectedCitations);
         console.log('Selected cover:', this.selectedCover);
+        console.log('Current overlay mode:', this.overlayMode);
         
         if (!this.currentPDF) {
             throw new Error('No PDF document loaded');
@@ -2468,8 +2469,14 @@ const loadingTimeout = setTimeout(() => {
         // Scale the drawing context
         context.scale(scaleFactor, scaleFactor);
         
-        // Render the composition with citation as background and cover overlay
-        await this.renderCompositionWithCustomCover(context, baseWidth, baseHeight);
+        // Render the composition based on overlay mode
+        if (this.overlayMode === 'side-by-side') {
+            console.log('Rendering side-by-side composition for export');
+            await this.renderCompositionToCanvas(context, baseWidth, baseHeight);
+        } else {
+            console.log('Rendering custom overlay composition for export');
+            await this.renderCompositionWithCustomCover(context, baseWidth, baseHeight);
+        }
         
         return exportCanvas;
     }
