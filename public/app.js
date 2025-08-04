@@ -25,6 +25,7 @@ class PDFComposerApp {
         this.lastCancelledFile = null;
         this.lastCancelledTime = 0;
         this.lastUploadTime = 0;
+        this.isHandlingFileSelect = false;
         
         // Cover transform state
         this.coverTransform = {
@@ -425,10 +426,15 @@ class PDFComposerApp {
         const chooseFileBtn = document.getElementById('chooseFileBtn');
         
         if (chooseFileBtn) {
-            chooseFileBtn.addEventListener('click', () => {
+            chooseFileBtn.addEventListener('click', (e) => {
+                e.preventDefault();
                 const now = Date.now();
-                if (this.lastUploadTime && now - this.lastUploadTime < 500) {
+                if (this.lastUploadTime && now - this.lastUploadTime < 1000) {
                     console.log('Choose file button debounced');
+                    return;
+                }
+                if (this.isHandlingFileSelect) {
+                    console.log('File selection in progress, ignoring button click');
                     return;
                 }
                 console.log('Choose file button clicked');
@@ -988,13 +994,31 @@ class PDFComposerApp {
     }
 
     async handleFileSelect(event) {
-        // Prevent rapid double clicks
+        // Prevent re-entrant calls and rapid double clicks
+        if (this.isHandlingFileSelect) {
+            console.log('Already handling file selection, ignoring duplicate');
+            event.target.value = '';
+            return;
+        }
+        
         const now = Date.now();
-        if (this.lastUploadTime && now - this.lastUploadTime < 500) {
+        if (this.lastUploadTime && now - this.lastUploadTime < 1000) {
             console.log('Preventing rapid double upload click');
             event.target.value = '';
             return;
         }
+        
+        // Prevent duplicate file selection (same file selected twice)
+        if (this.currentFileInfo && 
+            this.currentFileInfo.name === event.target.files[0]?.name &&
+            this.currentFileInfo.size === event.target.files[0]?.size &&
+            this.currentFileInfo.lastModified === event.target.files[0]?.lastModified) {
+            console.log('Preventing duplicate file selection');
+            event.target.value = '';
+            return;
+        }
+        
+        this.isHandlingFileSelect = true;
         this.lastUploadTime = now;
         
         // Reset cancellation flag for new upload
@@ -1116,9 +1140,16 @@ class PDFComposerApp {
                 this.showEmptyState();
             }
         } finally {
-            // Always reset processing flag and file input
+            // Always reset processing flags and file input at the very end
             this.isProcessing = false;
-            event.target.value = '';
+            this.isHandlingFileSelect = false;
+            
+            // Reset file input to prevent double prompts
+            setTimeout(() => {
+                if (event.target) {
+                    event.target.value = '';
+                }
+            }, 50);
         }
     }
 
