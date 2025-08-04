@@ -6206,4 +6206,7 @@ const loadingTimeout = setTimeout(() => {
     }
 }
 
-// PDFComposerApp will be initialized by the script in index.html
+// Initialize the app when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    window.pdfApp = new PDFComposerApp();
+});
