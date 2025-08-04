@@ -1029,7 +1029,7 @@ const loadingTimeout = setTimeout(() => {
                 this.updateProgress(30, 'Upload complete, loading PDF for viewing...');
                 console.log('Upload successful, loading PDF for viewing...');
                 await this.loadPDFForViewing(file);
-                this.updateTechnicalInfo(result.filename, result.pageCount);
+        
                 this.showToast('PDF loaded successfully', 'success');
             } else {
                 throw new Error(result.error || 'Upload failed');
@@ -3292,7 +3292,7 @@ const loadingTimeout = setTimeout(() => {
         // Stop loading animation
         this.stopLoadingAnimation();
         
-        this.updateTechnicalInfo('PDF VIEWER IDLE // WAITING FOR INPUT');
+
         
         // Clear any running progress intervals
         if (this.progressInterval) {
@@ -3312,7 +3312,7 @@ const loadingTimeout = setTimeout(() => {
         document.getElementById('pdfViewer').classList.add('hidden');
         document.getElementById('loadingState').classList.remove('hidden');
         
-        this.updateTechnicalInfo('LOADING PDF DOCUMENT...');
+
         
         // Initialize progress at 0%
         this.updateProgress(0, 'Preparing to load PDF...');
@@ -3569,7 +3569,7 @@ const loadingTimeout = setTimeout(() => {
             previewPanel.classList.remove('hidden');
         }
         
-        this.updateTechnicalInfo('PDF LOADED // READY FOR COMPOSITION');
+
     }
 
     updateProgress(percentage, message = '') {
@@ -3931,14 +3931,7 @@ const loadingTimeout = setTimeout(() => {
         console.log('=== SIDE-BY-SIDE EXPORT COMPLETE ===');
     }
 
-    updateTechnicalInfo(text, pageCount = null) {
-        const techInfo = document.getElementById('technicalInfo');
-        if (pageCount) {
-            techInfo.textContent = `PAGES: ${pageCount} | CITATIONS: ${this.selectedCitations.size} | COVER: ${this.selectedCover !== null ? this.selectedCover + 1 : 'NONE'}`;
-        } else {
-            techInfo.textContent = text;
-        }
-    }
+
 
     showToast(message, type = 'info') {
         const container = document.getElementById('toastContainer');
