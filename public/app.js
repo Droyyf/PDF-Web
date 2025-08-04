@@ -40,6 +40,9 @@ class PDFComposerApp {
         
         // Delay initialization to ensure DOM is ready
         setTimeout(() => this.initializeApp(), 100);
+        
+        // Ensure window.pdfApp is available immediately for h1 button
+        window.pdfApp = this;
     }
 
     async initializeApp() {
