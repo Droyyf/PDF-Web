@@ -20,6 +20,11 @@ class PDFComposerApp {
         this.loadingIconInProgress = false; // Prevent concurrent loading icon renders
         this.lastLoadingIconUpdate = 0; // Debounce loading icon updates
         
+        // File tracking for preventing double uploads
+        this.currentFileInfo = null;
+        this.lastCancelledFile = null;
+        this.lastCancelledTime = 0;
+        
         // Cover transform state
         this.coverTransform = {
             x: 0,
@@ -984,6 +989,23 @@ class PDFComposerApp {
         if (!file || file.type !== 'application/pdf') {
             this.showToast('Please select a valid PDF file', 'error');
             // Reset file input immediately
+            event.target.value = '';
+            return;
+        }
+        
+        // Store file info for cancellation tracking
+        this.currentFileInfo = {
+            name: file.name,
+            size: file.size,
+            lastModified: file.lastModified
+        };
+        
+        // Prevent double upload by checking if we just cancelled
+        if (this.lastCancelledFile && this.lastCancelledFile.name === file.name && 
+            this.lastCancelledFile.size === file.size && 
+            this.lastCancelledFile.lastModified === file.lastModified &&
+            Date.now() - this.lastCancelledTime < 1000) {
+            console.log('Preventing double upload of same file after cancellation');
             event.target.value = '';
             return;
         }
@@ -3508,6 +3530,17 @@ class PDFComposerApp {
         
         // Set cancellation flag immediately
         this.isCancelled = true;
+        
+        // Store last cancelled file info to prevent double uploads
+        if (this.currentFileInfo) {
+            this.lastCancelledFile = {
+                name: this.currentFileInfo.name,
+                size: this.currentFileInfo.size,
+                lastModified: this.currentFileInfo.lastModified
+            };
+            this.lastCancelledTime = Date.now();
+            console.log('📋 Stored cancelled file info:', this.lastCancelledFile);
+        }
         
         // Cancel any ongoing fetch requests
         if (this.currentAbortController) {
