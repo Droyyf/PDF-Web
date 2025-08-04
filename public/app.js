@@ -38,11 +38,11 @@ class PDFComposerApp {
         // Overlay mode state
         this.overlayMode = 'custom'; // 'custom' or 'sidebyside'
         
-        // Delay initialization to ensure DOM is ready
-        setTimeout(() => this.initializeApp(), 100);
-        
         // Ensure window.pdfApp is available immediately for h1 button
         window.pdfApp = this;
+        
+        // Delay initialization to ensure DOM is ready
+        setTimeout(() => this.initializeApp(), 100);
     }
 
     async initializeApp() {
@@ -3338,12 +3338,16 @@ const loadingTimeout = setTimeout(() => {
                 try {
                     console.log('🚫 Cancelling previous render task...');
                     this.currentRenderTask.cancel();
-                    await new Promise(resolve => setTimeout(resolve, 50)); // Small delay to ensure cancellation
+                    // Wait longer for cancellation to complete
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 } catch (e) {
                     console.log('⚠️ Cancellation error (expected):', e.message);
                 }
                 this.currentRenderTask = null;
             }
+            
+            // Additional safety: wait a bit more before starting new render
+            await new Promise(resolve => setTimeout(resolve, 50));
             
             // Clear the canvas completely
             context.clearRect(0, 0, canvas.width, canvas.height);
@@ -6246,5 +6250,8 @@ const loadingTimeout = setTimeout(() => {
 
 // Initialize the app when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    window.pdfApp = new PDFComposerApp();
+    // Only create new instance if window.pdfApp doesn't exist
+    if (!window.pdfApp) {
+        window.pdfApp = new PDFComposerApp();
+    }
 });
