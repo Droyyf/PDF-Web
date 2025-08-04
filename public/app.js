@@ -40,6 +40,7 @@ class PDFComposerApp {
         this.overlayMode = 'custom'; // 'custom' or 'sidebyside'
         this.isCancelled = false;
         this.currentAbortController = null;
+        this.currentRenderTask = null;
         
         // Ensure window.pdfApp is available immediately for h1 button
         window.pdfApp = this;
@@ -1691,7 +1692,7 @@ const loadingTimeout = setTimeout(() => {
     goToPage(pageIndex) {
         if (pageIndex >= 0 && pageIndex < this.totalPages) {
             this.currentPage = pageIndex;
-            this.renderCurrentPage();
+            this.showPagePreview(pageIndex);
         }
     }
 
@@ -5431,7 +5432,12 @@ const loadingTimeout = setTimeout(() => {
             coverContainer.classList.add('hidden');
         }
         
-        // Note: Render task cancellation disabled to prevent conflicts
+        // Cancel any existing render task
+        if (this.currentRenderTask) {
+            console.log('Cancelling existing render task');
+            this.currentRenderTask.cancel();
+            this.currentRenderTask = null;
+        }
         
         const context = canvas.getContext('2d');
         const container = canvas.parentElement;
@@ -5489,10 +5495,21 @@ const loadingTimeout = setTimeout(() => {
             const scale = canvasWidth / viewport.width;
             const scaledViewport = page.getViewport({ scale });
             
-            await page.render({
+            this.currentRenderTask = page.render({
                 canvasContext: context,
                 viewport: scaledViewport
-            }).promise;
+            });
+            
+            try {
+                await this.currentRenderTask.promise;
+                this.currentRenderTask = null;
+            } catch (error) {
+                if (error.name === 'RenderingCancelledException') {
+                    console.log('Render cancelled, ignoring');
+                    return;
+                }
+                throw error;
+            }
             
             console.log('Single page preview rendered for page:', pageIndex);
             
