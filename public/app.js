@@ -3309,7 +3309,7 @@ const loadingTimeout = setTimeout(() => {
     }
     
     async updateLoadingIconWithFirstPage() {
-        // Prevent multiple concurrent calls
+        // Prevent multiple concurrent calls with a more robust check
         if (this.loadingIconInProgress) {
             console.log('🔄 Loading icon already in progress, skipping...');
             return;
@@ -3328,6 +3328,7 @@ const loadingTimeout = setTimeout(() => {
             return;
         }
         
+        // Set flag immediately to prevent race conditions
         this.loadingIconInProgress = true;
         
         try {
@@ -3335,9 +3336,11 @@ const loadingTimeout = setTimeout(() => {
             const context = canvas.getContext('2d');
             if (this.currentRenderTask) {
                 try {
+                    console.log('🚫 Cancelling previous render task...');
                     this.currentRenderTask.cancel();
+                    await new Promise(resolve => setTimeout(resolve, 50)); // Small delay to ensure cancellation
                 } catch (e) {
-                    // Ignore cancellation errors
+                    console.log('⚠️ Cancellation error (expected):', e.message);
                 }
                 this.currentRenderTask = null;
             }
@@ -3383,12 +3386,14 @@ const loadingTimeout = setTimeout(() => {
             console.log('🎨 Starting page render for loading icon...');
             
             // Store the render task to allow cancellation
+            console.log('🎨 Starting new render task...');
             this.currentRenderTask = page.render({
                 canvasContext: context,
                 viewport: viewport
             });
             
             await this.currentRenderTask.promise;
+            console.log('✅ Render task completed successfully');
             this.currentRenderTask = null;
             
             console.log('✅ Loading icon rendered successfully');
