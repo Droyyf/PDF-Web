@@ -3273,6 +3273,9 @@ const loadingTimeout = setTimeout(() => {
         const appContainer = document.querySelector('.app-container');
         if (appContainer) appContainer.classList.remove('loading');
         
+        // Stop loading animation
+        this.stopLoadingAnimation();
+        
         this.updateTechnicalInfo('PDF VIEWER IDLE // WAITING FOR INPUT');
         
         // Clear any running progress intervals
@@ -3360,6 +3363,9 @@ const loadingTimeout = setTimeout(() => {
             
             console.log('✅ Loading icon rendered successfully');
             
+            // Start enhanced animation after rendering
+            this.startLoadingAnimation(canvas);
+            
         } catch (error) {
             console.error('❌ Loading icon error:', error);
         } finally {
@@ -3367,10 +3373,74 @@ const loadingTimeout = setTimeout(() => {
         }
     }
 
+    startLoadingAnimation(canvas) {
+        // Stop any existing animation
+        this.stopLoadingAnimation();
+        
+        let rotation = 0;
+        let scale = 1;
+        let scaleDirection = 1;
+        let opacity = 1;
+        let opacityDirection = -1;
+        
+        const animate = () => {
+            // Smooth rotation
+            rotation += 2;
+            
+            // Gentle pulsing scale
+            scale += scaleDirection * 0.01;
+            if (scale >= 1.1) {
+                scaleDirection = -1;
+            } else if (scale <= 0.9) {
+                scaleDirection = 1;
+            }
+            
+            // Subtle opacity breathing
+            opacity += opacityDirection * 0.02;
+            if (opacity >= 1) {
+                opacityDirection = -1;
+            } else if (opacity <= 0.7) {
+                opacityDirection = 1;
+            }
+            
+            // Apply combined transform with smooth transitions
+            canvas.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+            canvas.style.opacity = opacity;
+            canvas.style.transition = 'none'; // Disable CSS transitions for smooth animation
+            
+            this.loadingAnimationId = requestAnimationFrame(animate);
+        };
+        
+        // Add CSS for smooth animation base
+        canvas.style.transformOrigin = 'center';
+        canvas.style.filter = 'drop-shadow(0 2px 8px rgba(0,0,0,0.2))';
+        
+        this.loadingAnimationId = requestAnimationFrame(animate);
+    }
+    
+    stopLoadingAnimation() {
+        if (this.loadingAnimationId) {
+            cancelAnimationFrame(this.loadingAnimationId);
+            this.loadingAnimationId = null;
+        }
+        
+        // Reset canvas transform and opacity
+        const canvas = document.getElementById('loadingPreviewCanvas');
+        if (canvas) {
+            canvas.style.transform = '';
+            canvas.style.opacity = '';
+            canvas.style.filter = '';
+            canvas.style.transition = '';
+        }
+    }
+
     showPDFViewer() {
         document.getElementById('emptyState').classList.add('hidden');
         document.getElementById('loadingState').classList.add('hidden');
         document.getElementById('pdfViewer').classList.remove('hidden');
+        
+        // Stop loading animation when transitioning away from loading state
+        this.stopLoadingAnimation();
         
         // Remove loading class to re-enable transitions
         const appContainer = document.querySelector('.app-container');
