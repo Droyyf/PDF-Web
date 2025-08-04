@@ -38,6 +38,8 @@ class PDFComposerApp {
         
         // Overlay mode state
         this.overlayMode = 'custom'; // 'custom' or 'sidebyside'
+        this.isCancelled = false;
+        this.currentAbortController = null;
         
         // Ensure window.pdfApp is available immediately for h1 button
         window.pdfApp = this;
@@ -1002,6 +1004,11 @@ const loadingTimeout = setTimeout(() => {
     }
 
     async uploadPDF(file) {
+        if (this.isCancelled) {
+            console.log('Upload cancelled before starting');
+            return;
+        }
+
         const formData = new FormData();
         formData.append('pdf', file);
 
@@ -1009,10 +1016,19 @@ const loadingTimeout = setTimeout(() => {
             console.log('Uploading PDF to server...');
             this.updateProgress(10, 'Uploading PDF to server...');
             
+            // Create new AbortController for this upload
+            this.currentAbortController = new AbortController();
+            
             const response = await fetch('/api/upload', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                signal: this.currentAbortController.signal
             });
+
+            if (this.isCancelled) {
+                console.log('Upload cancelled after server response');
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error(`Upload failed: ${response.statusText}`);
@@ -1020,6 +1036,11 @@ const loadingTimeout = setTimeout(() => {
 
             this.updateProgress(25, 'Processing PDF on server...');
             const result = await response.json();
+            
+            if (this.isCancelled) {
+                console.log('Upload cancelled after server processing');
+                return;
+            }
             
             if (result.success) {
                 this.fileId = result.fileId;
@@ -1030,7 +1051,9 @@ const loadingTimeout = setTimeout(() => {
                 console.log('Upload successful, loading PDF for viewing...');
                 await this.loadPDFForViewing(file);
         
-                this.showToast('PDF loaded successfully', 'success');
+                if (!this.isCancelled) {
+                    this.showToast('PDF loaded successfully', 'success');
+                }
             } else {
                 throw new Error(result.error || 'Upload failed');
             }
@@ -1042,6 +1065,11 @@ const loadingTimeout = setTimeout(() => {
 
     async loadPDFForViewing(file) {
         try {
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled before starting');
+                return;
+            }
+
             console.log('Loading PDF for viewing, file size:', file.size, 'bytes');
             
             // Activate background processing support immediately
@@ -1063,12 +1091,27 @@ const loadingTimeout = setTimeout(() => {
             console.log('PDF.js library available, loading document...');
             this.updateProgress(35, 'Loading PDF document...');
 
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled before array buffer');
+                return;
+            }
+
             const arrayBuffer = await file.arrayBuffer();
             this.pdfArrayBuffer = arrayBuffer; // Store for worker processing
             this.updateProgress(40, 'Parsing PDF structure...');
             
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled before document load');
+                return;
+            }
+
             this.currentPDF = await pdfjsLib.getDocument(arrayBuffer).promise;
             console.log('PDF document loaded successfully:', this.currentPDF.numPages, 'pages');
+            
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled after document load');
+                return;
+            }
             
             // Update loading icon with first page
             await this.updateLoadingIconWithFirstPage();
@@ -1086,6 +1129,11 @@ const loadingTimeout = setTimeout(() => {
             console.log('Generating thumbnails...');
             await this.generateAllThumbnails();
             
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled after thumbnail generation');
+                return;
+            }
+            
             this.renderThumbnails();
             
             // Complete the progress before showing PDF viewer
@@ -1093,19 +1141,26 @@ const loadingTimeout = setTimeout(() => {
             
             // Small delay to show 100% completion, then show PDF viewer
             setTimeout(() => {
-                this.showPDFViewer();
+                if (!this.isCancelled) {
+                    this.showPDFViewer();
+                    
+                    // Initialize preview with first page
+                    this.currentPreviewPage = 0;
+                    this.updatePreview();
+                    
+                    console.log('PDF loading complete');
+                }
                 
-                // Initialize preview with first page
-                this.currentPreviewPage = 0;
-                this.updatePreview();
-                
-                console.log('PDF loading complete');
-                
-                // Deactivate background preservation after completion
+                // Deactivate background preservation after completion or cancellation
                 this.deactivateBackgroundPreservation();
             }, 500);
             
         } catch (error) {
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled due to cancellation');
+                return;
+            }
+            
             console.error('PDF loading error:', error);
             console.error('Error stack:', error.stack);
             
@@ -1235,6 +1290,11 @@ const loadingTimeout = setTimeout(() => {
         
         try {
             for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
+                if (this.isCancelled) {
+                    console.log(`Thumbnail generation cancelled at page ${pageNum}/${this.totalPages}`);
+                    break;
+                }
+                
                 try {
                     const startTime = performance.now();
                     console.log(`=== Processing page ${pageNum}/${this.totalPages} at ${startTime.toFixed(2)}ms ===`);
@@ -1363,6 +1423,14 @@ const loadingTimeout = setTimeout(() => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             // Restore original title
             document.title = originalTitle;
+            
+            if (this.isCancelled) {
+                console.log('=== THUMBNAIL DEBUG: Generation cancelled ===');
+                // Clear any partially generated thumbnails
+                this.thumbnails = new Array(this.totalPages).fill(null);
+                this.isProcessing = false;
+                this.processingStartTime = null;
+            }
         }
     }
     
@@ -3281,6 +3349,58 @@ const loadingTimeout = setTimeout(() => {
 
 
     showEmptyState() {
+        console.log('🛑 Cancelling all operations and returning to empty state');
+        
+        // Set cancellation flag
+        this.isCancelled = true;
+        
+        // Cancel any ongoing fetch requests
+        if (this.currentAbortController) {
+            this.currentAbortController.abort();
+            this.currentAbortController = null;
+        }
+        
+        // Cancel any ongoing render tasks
+        this.cancelCurrentRenderTask();
+        
+        // Cancel worker tasks
+        if (this.thumbnailWorker && this.currentTaskId) {
+            this.thumbnailWorker.postMessage({
+                type: 'CANCEL',
+                taskId: this.currentTaskId
+            });
+        }
+        
+        // Reset processing state
+        this.isProcessing = false;
+        this.processingStartTime = null;
+        this.currentTaskId = null;
+        
+        // Clear all intervals and timeouts
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+            this.progressInterval = null;
+        }
+        
+        if (this.keepAliveInterval) {
+            clearInterval(this.keepAliveInterval);
+            this.keepAliveInterval = null;
+        }
+        
+        if (this.aggressiveKeepAliveInterval) {
+            clearInterval(this.aggressiveKeepAliveInterval);
+            this.aggressiveKeepAliveInterval = null;
+        }
+        
+        if (this.faviconAnimationId) {
+            clearInterval(this.faviconAnimationId);
+            this.faviconAnimationId = null;
+        }
+        
+        // Reset cancellation flag after cleanup
+        this.isCancelled = false;
+        
+        // Reset UI state
         document.getElementById('emptyState').classList.remove('hidden');
         document.getElementById('pdfViewer').classList.add('hidden');
         document.getElementById('loadingState').classList.add('hidden');
@@ -3292,12 +3412,18 @@ const loadingTimeout = setTimeout(() => {
         // Stop loading animation
         this.stopLoadingAnimation();
         
-
+        // Restore original title
+        if (this.originalTitle) {
+            document.title = this.originalTitle;
+        }
         
-        // Clear any running progress intervals
-        if (this.progressInterval) {
-            clearInterval(this.progressInterval);
-            this.progressInterval = null;
+        // Deactivate background preservation
+        this.deactivateBackgroundPreservation();
+        
+        // Reset file input to allow re-uploading the same file
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            fileInput.value = '';
         }
     }
 
