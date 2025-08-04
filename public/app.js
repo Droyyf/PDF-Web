@@ -26,6 +26,7 @@ class PDFComposerApp {
         this.lastCancelledTime = 0;
         this.lastUploadTime = 0;
         this.isHandlingFileSelect = false;
+        this.eventListenersInitialized = false; // Prevent duplicate event listeners
         
         // Cover transform state
         this.coverTransform = {
@@ -411,23 +412,38 @@ class PDFComposerApp {
     }
 
     setupEventListeners() {
-        console.log('Setting up event listeners...');
+        if (this.eventListenersInitialized) {
+            console.log('Event listeners already initialized, skipping');
+            return;
+        }
         
-        // File input
+        console.log('Setting up event listeners...');
+        this.eventListenersInitialized = true;
+        
+        // File input - use once: true to prevent duplicate listeners
         const fileInput = document.getElementById('fileInput');
         if (fileInput) {
-            fileInput.addEventListener('change', this.handleFileSelect.bind(this));
-            console.log('File input listener added');
+            // Remove any existing listeners first
+            const newFileInput = fileInput.cloneNode(true);
+            fileInput.parentNode.replaceChild(newFileInput, fileInput);
+            newFileInput.addEventListener('change', this.handleFileSelect.bind(this), { once: true });
+            console.log('File input listener added with once: true');
         } else {
             console.error('File input not found');
         }
 
-        // Center upload button only
+        // Center upload button only - use once: true
         const chooseFileBtn = document.getElementById('chooseFileBtn');
         
         if (chooseFileBtn) {
-            chooseFileBtn.addEventListener('click', (e) => {
+            // Remove any existing listeners first
+            const newChooseFileBtn = chooseFileBtn.cloneNode(true);
+            chooseFileBtn.parentNode.replaceChild(newChooseFileBtn, chooseFileBtn);
+            
+            newChooseFileBtn.addEventListener('click', (e) => {
                 e.preventDefault();
+                e.stopPropagation(); // Prevent any bubbling
+                
                 const now = Date.now();
                 if (this.lastUploadTime && now - this.lastUploadTime < 1000) {
                     console.log('Choose file button debounced');
@@ -437,14 +453,18 @@ class PDFComposerApp {
                     console.log('File selection in progress, ignoring button click');
                     return;
                 }
+                
                 console.log('Choose file button clicked');
-                if (fileInput) {
-                    fileInput.click();
+                const fileInputEl = document.getElementById('fileInput');
+                if (fileInputEl) {
+                    // Disable button during processing
+                    e.target.disabled = true;
+                    fileInputEl.click();
                 } else {
                     console.error('File input not found when button clicked');
                 }
-            });
-            console.log('Choose file button listener added');
+            }, { once: true });
+            console.log('Choose file button listener added with once: true');
         } else {
             console.error('Choose file button not found');
         }
@@ -1018,6 +1038,9 @@ class PDFComposerApp {
             return;
         }
         
+        // Disable file input immediately to prevent multiple selections
+        event.target.disabled = true;
+        
         this.isHandlingFileSelect = true;
         this.lastUploadTime = now;
         
@@ -1144,10 +1167,17 @@ class PDFComposerApp {
             this.isProcessing = false;
             this.isHandlingFileSelect = false;
             
-            // Reset file input to prevent double prompts
+            // Reset file input to prevent double prompts and re-enable
             setTimeout(() => {
                 if (event.target) {
                     event.target.value = '';
+                    event.target.disabled = false; // Re-enable file input
+                }
+                
+                // Also re-enable the choose file button
+                const chooseFileBtn = document.getElementById('chooseFileBtn');
+                if (chooseFileBtn) {
+                    chooseFileBtn.disabled = false;
                 }
             }, 50);
         }

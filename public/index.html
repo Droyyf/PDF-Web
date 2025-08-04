@@ -217,15 +217,36 @@
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="app.js"></script>
     <script>
-        // Initialize app when everything is ready
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded, initializing app...');
-            if (typeof PDFComposerApp !== 'undefined') {
-                window.pdfApp = new PDFComposerApp();
-            } else {
-                console.error('PDFComposerApp class not found');
+        // Initialize app when everything is ready - prevent duplicate initialization
+        if (!window.pdfAppInitialized) {
+            window.pdfAppInitialized = false;
+            
+            function initializeAppOnce() {
+                if (window.pdfAppInitialized) {
+                    console.log('App already initialized, skipping duplicate call');
+                    return;
+                }
+                window.pdfAppInitialized = true;
+                
+                console.log('DOM loaded, initializing app...');
+                if (typeof PDFComposerApp !== 'undefined') {
+                    window.pdfApp = new PDFComposerApp();
+                } else {
+                    console.error('PDFComposerApp class not found');
+                }
             }
-        });
+            
+            // Use multiple events but ensure only one fires
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initializeAppOnce, { once: true });
+            } else {
+                // DOM is already ready
+                setTimeout(initializeAppOnce, 0);
+            }
+            
+            // Fallback - ensure it runs at most once
+            window.addEventListener('load', initializeAppOnce, { once: true });
+        }
     </script>
 </body>
 </html>
