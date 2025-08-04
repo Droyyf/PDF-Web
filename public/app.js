@@ -3286,6 +3286,12 @@ const loadingTimeout = setTimeout(() => {
     }
 
     showLoadingState() {
+        // Add loading class to app container for CSS styling
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) {
+            appContainer.classList.add('loading');
+        }
+        
         document.getElementById('emptyState').classList.add('hidden');
         document.getElementById('pdfViewer').classList.add('hidden');
         document.getElementById('loadingState').classList.remove('hidden');
