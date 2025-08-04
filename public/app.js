@@ -3355,24 +3355,11 @@ const loadingTimeout = setTimeout(() => {
         this.loadingIconInProgress = true;
         
         try {
-            // Cancel any ongoing render operations on this canvas
-            if (this.currentRenderTask) {
-                try {
-                    console.log('🚫 Cancelling previous render task...');
-                    this.currentRenderTask.cancel();
-                    // Wait longer for cancellation to complete
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                } catch (e) {
-                    console.log('⚠️ Cancellation error (expected):', e.message);
-                }
-                this.currentRenderTask = null;
-            }
+            // Ensure any previous render task is completely cancelled
+            await this.cancelCurrentRenderTask();
             
-            // Additional safety: wait a bit more before starting new render
-            await new Promise(resolve => setTimeout(resolve, 50));
-            
-            // Clear the canvas completely
-            context.clearRect(0, 0, canvas.width, canvas.height);
+            // Reset canvas to a clean state
+            this.resetCanvasState(canvas, context);
             
             console.log('🔄 Getting first page for loading icon...');
             
@@ -3411,16 +3398,25 @@ const loadingTimeout = setTimeout(() => {
             
             console.log('🎨 Starting page render for loading icon...');
             
-            // Store the render task to allow cancellation
-            console.log('🎨 Starting new render task...');
-            this.currentRenderTask = page.render({
+            // Create a new render task with a fresh canvas
+            const renderTask = page.render({
                 canvasContext: context,
-                viewport: viewport
+                viewport: viewport,
+                // Ensure we don't reuse the same canvas instance
+                intent: 'display'
             });
             
-            await this.currentRenderTask.promise;
+            this.currentRenderTask = renderTask;
+            
+            // Use Promise.race to handle both success and cancellation with timeout
+            await Promise.race([
+                renderTask.promise,
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Render timeout')), 5000)
+                )
+            ]);
+            
             console.log('✅ Render task completed successfully');
-            this.currentRenderTask = null;
             
             console.log('✅ Loading icon rendered successfully');
             
@@ -3428,13 +3424,48 @@ const loadingTimeout = setTimeout(() => {
             this.startLoadingAnimation(canvas);
             
         } catch (error) {
-            if (error.name !== 'RenderingCancelledException') {
+            if (error.name === 'RenderingCancelledException') {
+                console.log('🚫 Render was cancelled, this is expected');
+            } else {
                 console.error('❌ Loading icon error:', error);
             }
         } finally {
             this.loadingIconInProgress = false;
             this.currentRenderTask = null;
         }
+    }
+
+    async cancelCurrentRenderTask() {
+        if (this.currentRenderTask) {
+            try {
+                console.log('🚫 Cancelling previous render task...');
+                await this.currentRenderTask.cancel();
+                console.log('✅ Previous render task cancelled');
+                
+                // Wait a bit to ensure cancellation is complete
+                await new Promise(resolve => setTimeout(resolve, 100));
+            } catch (e) {
+                console.log('⚠️ Cancellation error (expected):', e.message);
+            } finally {
+                this.currentRenderTask = null;
+            }
+        }
+    }
+
+    resetCanvasState(canvas, context) {
+        // Stop any ongoing animation
+        this.stopLoadingAnimation();
+        
+        // Reset canvas to default state
+        canvas.width = 50;
+        canvas.height = 50;
+        canvas.style.transform = '';
+        canvas.style.opacity = '';
+        canvas.style.filter = '';
+        canvas.style.transition = '';
+        
+        // Clear canvas completely
+        context.clearRect(0, 0, canvas.width, canvas.height);
     }
 
     startLoadingAnimation(canvas) {
@@ -3498,13 +3529,19 @@ const loadingTimeout = setTimeout(() => {
         }
     }
 
-    showPDFViewer() {
+    async showPDFViewer() {
         document.getElementById('emptyState').classList.add('hidden');
         document.getElementById('loadingState').classList.add('hidden');
         document.getElementById('pdfViewer').classList.remove('hidden');
         
+        // Cancel any ongoing render tasks
+        await this.cancelCurrentRenderTask();
+        
         // Stop loading animation when transitioning away from loading state
         this.stopLoadingAnimation();
+        
+        // Reset loading state flags
+        this.loadingIconInProgress = false;
         
         // Remove loading class to re-enable transitions
         const appContainer = document.querySelector('.app-container');
