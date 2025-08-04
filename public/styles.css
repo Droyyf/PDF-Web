@@ -725,6 +725,20 @@ body {
     position: static !important;
 }
 
+/* Ensure header is always visible and clickable */
+.app-header {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 1000 !important;
+    pointer-events: auto !important;
+}
+
+.app-header .app-title {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
 /* Prevent any backdrop filters or effects during loading */
 .app-container.loading .preview-panel,
 .app-container.loading .thumbnail-panel {
