@@ -921,6 +921,14 @@ class PDFComposerApp {
     }
 
     handleKeyPress(event) {
+        // Allow cancellation with Escape key during processing
+        if (event.key === 'Escape' && this.isProcessing) {
+            event.preventDefault();
+            console.log('Escape key pressed - cancelling operations');
+            this.showEmptyState();
+            return;
+        }
+
         if (!this.currentPDF) return;
 
         switch (event.key) {
@@ -936,6 +944,9 @@ class PDFComposerApp {
     }
 
     async handleFileSelect(event) {
+        // Reset cancellation flag for new upload
+        this.isCancelled = false;
+        
         const file = event.target.files[0];
         if (!file || file.type !== 'application/pdf') {
             this.showToast('Please select a valid PDF file', 'error');
@@ -1024,6 +1035,11 @@ const loadingTimeout = setTimeout(() => {
                 body: formData,
                 signal: this.currentAbortController.signal
             });
+            
+            if (this.isCancelled) {
+                console.log('Upload cancelled during server upload');
+                return;
+            }
 
             if (this.isCancelled) {
                 console.log('Upload cancelled after server response');
@@ -1097,6 +1113,10 @@ const loadingTimeout = setTimeout(() => {
             }
 
             const arrayBuffer = await file.arrayBuffer();
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled after array buffer');
+                return;
+            }
             this.pdfArrayBuffer = arrayBuffer; // Store for worker processing
             this.updateProgress(40, 'Parsing PDF structure...');
             
@@ -1149,6 +1169,8 @@ const loadingTimeout = setTimeout(() => {
                     this.updatePreview();
                     
                     console.log('PDF loading complete');
+                } else {
+                    console.log('PDF loading cancelled during final timeout');
                 }
                 
                 // Deactivate background preservation after completion or cancellation
@@ -1296,10 +1318,19 @@ const loadingTimeout = setTimeout(() => {
                 }
                 
                 try {
+                    if (this.isCancelled) {
+                        console.log(`Thumbnail generation cancelled before page ${pageNum} load`);
+                        break;
+                    }
+                    
                     const startTime = performance.now();
                     console.log(`=== Processing page ${pageNum}/${this.totalPages} at ${startTime.toFixed(2)}ms ===`);
                     
                     const page = await this.currentPDF.getPage(pageNum);
+                    if (this.isCancelled) {
+                        console.log(`Thumbnail generation cancelled after page ${pageNum} load`);
+                        break;
+                    }
                     console.log(`Page ${pageNum} loaded in ${(performance.now() - startTime).toFixed(2)}ms`);
                     
                     // Calculate optimal scale for thumbnail generation
@@ -3397,8 +3428,8 @@ const loadingTimeout = setTimeout(() => {
             this.faviconAnimationId = null;
         }
         
-        // Reset cancellation flag after cleanup
-        this.isCancelled = false;
+        // Keep cancellation flag true until explicitly reset by new upload
+        // Don't reset it here - let the next upload operation reset it
         
         // Reset UI state
         document.getElementById('emptyState').classList.remove('hidden');
