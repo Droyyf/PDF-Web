@@ -24,6 +24,7 @@ class PDFComposerApp {
         this.currentFileInfo = null;
         this.lastCancelledFile = null;
         this.lastCancelledTime = 0;
+        this.lastUploadTime = 0;
         
         // Cover transform state
         this.coverTransform = {
@@ -425,6 +426,11 @@ class PDFComposerApp {
         
         if (chooseFileBtn) {
             chooseFileBtn.addEventListener('click', () => {
+                const now = Date.now();
+                if (this.lastUploadTime && now - this.lastUploadTime < 500) {
+                    console.log('Choose file button debounced');
+                    return;
+                }
                 console.log('Choose file button clicked');
                 if (fileInput) {
                     fileInput.click();
@@ -982,6 +988,15 @@ class PDFComposerApp {
     }
 
     async handleFileSelect(event) {
+        // Prevent rapid double clicks
+        const now = Date.now();
+        if (this.lastUploadTime && now - this.lastUploadTime < 500) {
+            console.log('Preventing rapid double upload click');
+            event.target.value = '';
+            return;
+        }
+        this.lastUploadTime = now;
+        
         // Reset cancellation flag for new upload
         this.isCancelled = false;
         
@@ -1004,7 +1019,7 @@ class PDFComposerApp {
         if (this.lastCancelledFile && this.lastCancelledFile.name === file.name && 
             this.lastCancelledFile.size === file.size && 
             this.lastCancelledFile.lastModified === file.lastModified &&
-            Date.now() - this.lastCancelledTime < 1000) {
+            Date.now() - this.lastCancelledTime < 2000) {
             console.log('Preventing double upload of same file after cancellation');
             event.target.value = '';
             return;
@@ -3496,6 +3511,13 @@ class PDFComposerApp {
     showEmptyState() {
         console.log('🛑 Cancelling all operations and returning to empty state');
         
+        // Reset file input immediately to prevent double prompts
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            fileInput.value = '';
+            console.log('File input reset immediately');
+        }
+        
         this.cancelAllOperations();
         
         // Reset UI state
@@ -3518,11 +3540,8 @@ class PDFComposerApp {
         // Deactivate background preservation
         this.deactivateBackgroundPreservation();
         
-        // Reset file input to allow re-uploading the same file
-        const fileInput = document.getElementById('fileInput');
-        if (fileInput) {
-            fileInput.value = '';
-        }
+        // Clear any stored file info
+        this.currentFileInfo = null;
     }
 
     cancelAllOperations() {
