@@ -412,39 +412,66 @@ class PDFComposerApp {
     }
 
     setupEventListeners() {
-        if (this.eventListenersInitialized) return;
+        if (this.eventListenersInitialized) {
+            console.log('Event listeners already initialized, skipping');
+            return;
+        }
         
-        console.log('Setting up singleton file handlers...');
+        console.log('Setting up event listeners...');
         this.eventListenersInitialized = true;
         
-        // Create singleton file input
-        let fileInput = document.getElementById('fileInput');
-        if (!fileInput) {
-            fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.id = 'fileInput';
-            fileInput.accept = '.pdf';
-            fileInput.style.display = 'none';
-            document.body.appendChild(fileInput);
+        // File input - use once: true to prevent duplicate listeners
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            // Remove any existing listeners first
+            const newFileInput = fileInput.cloneNode(true);
+            fileInput.parentNode.replaceChild(newFileInput, fileInput);
+            newFileInput.addEventListener('change', this.handleFileSelect.bind(this), { once: true });
+            console.log('File input listener added with once: true');
+        } else {
+            console.error('File input not found');
         }
+
+        // Center upload button only - use once: true
+        const chooseFileBtn = document.getElementById('chooseFileBtn');
         
-        // Single handler only - using direct assignment to prevent duplicates
-        fileInput.onchange = (event) => {
-            this.handleFileSelect(event);
-        };
-        
-        // Choose button - single handler using direct assignment
-        const chooseBtn = document.getElementById('chooseFileBtn');
-        if (chooseBtn) {
-            chooseBtn.onclick = (e) => {
+        if (chooseFileBtn) {
+            // Remove any existing listeners first
+            const newChooseFileBtn = chooseFileBtn.cloneNode(true);
+            chooseFileBtn.parentNode.replaceChild(newChooseFileBtn, chooseFileBtn);
+            
+            newChooseFileBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                e.stopPropagation();
-                if (!window.__pdfUploadSingletonLock) {
-                    fileInput.click();
+                e.stopPropagation(); // Prevent any bubbling
+                
+                const now = Date.now();
+                if (this.lastUploadTime && now - this.lastUploadTime < 1000) {
+                    console.log('Choose file button debounced');
+                    return;
                 }
-            };
+                if (this.isHandlingFileSelect) {
+                    console.log('File selection in progress, ignoring button click');
+                    return;
+                }
+                
+                console.log('Choose file button clicked');
+                const fileInputEl = document.getElementById('fileInput');
+                if (fileInputEl) {
+                    // Disable button during processing
+                    e.target.disabled = true;
+                    fileInputEl.click();
+                } else {
+                    console.error('File input not found when button clicked');
+                }
+            }, { once: true });
+            console.log('Choose file button listener added with once: true');
+        } else {
+            console.error('Choose file button not found');
         }
-        
+
+        // PDF navigation removed - using preview only
+
+
         // Selection panel controls
         const closeSelectionBtn = document.getElementById('closeSelection');
         const composeBtnEl = document.getElementById('composeBtn');
@@ -522,7 +549,7 @@ class PDFComposerApp {
             });
         }
     }
-    
+
     setupBackgroundProcessingSupport() {
         // Enhanced Page Visibility API handling
         if (typeof document.visibilityState !== 'undefined') {
@@ -987,134 +1014,274 @@ class PDFComposerApp {
     }
 
     async handleFileSelect(event) {
-        // Absolute prevention of double file selection prompt
-        if (window.__pdfUploadSingletonLock) {
-            console.log('Singleton lock active - preventing double prompt');
+        // Prevent re-entrant calls and rapid double clicks
+        if (this.isHandlingFileSelect) {
+            console.log('Already handling file selection, ignoring duplicate');
             event.target.value = '';
             return;
         }
         
-        // Set global singleton lock
-        window.__pdfUploadSingletonLock = true;
-        
-        // Multi-layer protection
         const now = Date.now();
-        if (this.isHandlingFileSelect || 
-            (this.lastUploadTime && now - this.lastUploadTime < 2000)) {
-            console.log('Rapid duplicate prevented');
-            window.__pdfUploadSingletonLock = false;
+        if (this.lastUploadTime && now - this.lastUploadTime < 1000) {
+            console.log('Preventing rapid double upload click');
             event.target.value = '';
             return;
         }
+        
+        // Prevent duplicate file selection (same file selected twice)
+        if (this.currentFileInfo && 
+            this.currentFileInfo.name === event.target.files[0]?.name &&
+            this.currentFileInfo.size === event.target.files[0]?.size &&
+            this.currentFileInfo.lastModified === event.target.files[0]?.lastModified) {
+            console.log('Preventing duplicate file selection');
+            event.target.value = '';
+            return;
+        }
+        
+        // Disable file input immediately to prevent multiple selections
+        event.target.disabled = true;
         
         this.isHandlingFileSelect = true;
         this.lastUploadTime = now;
         
-        try {
-            const file = event.target.files[0];
-            if (!file || file.type !== 'application/pdf') {
-                this.showToast('Please select a valid PDF file', 'error');
-                return;
-            }
-            
-    async handleFileSelect(event) {
-        // Bulletproof singleton lock
-        if (window.__pdfUploadSingletonLock) {
-            console.log('File selection already in progress, ignoring duplicate');
+        // Reset cancellation flag for new upload
+        this.isCancelled = false;
+        
+        const file = event.target.files[0];
+        if (!file || file.type !== 'application/pdf') {
+            this.showToast('Please select a valid PDF file', 'error');
+            // Reset file input immediately
+            event.target.value = '';
             return;
         }
         
-        window.__pdfUploadSingletonLock = true;
-        this.isHandlingFileSelect = true;
+        // Store file info for cancellation tracking
+        this.currentFileInfo = {
+            name: file.name,
+            size: file.size,
+            lastModified: file.lastModified
+        };
         
-        try {
-            const file = event.target.files[0];
-            if (!file) {
-                window.__pdfUploadSingletonLock = false;
-                return;
-            }
-            
-            // Validate file type
-            if (file.type !== 'application/pdf') {
-                this.showToast('Please select a PDF file', 'error');
-                window.__pdfUploadSingletonLock = false;
-                return;
-            }
-            
-            // Validate file size (50MB limit)
-            if (file.size > 50 * 1024 * 1024) {
-                this.showToast('File size exceeds 50MB limit', 'error');
-                window.__pdfUploadSingletonLock = false;
-                return;
-            }
-            
-            // Check if already processing
-            if (this.isProcessing) {
-                this.showToast('Please wait for current processing to complete', 'warning');
-                window.__pdfUploadSingletonLock = false;
-                return;
-            }
-            
-            await this.processFileUpload(file);
-            
-        } finally {
-            // Always reset state
-            this.isHandlingFileSelect = false;
-            window.__pdfUploadSingletonLock = false;
+        // Prevent double upload by checking if we just cancelled
+        if (this.lastCancelledFile && this.lastCancelledFile.name === file.name && 
+            this.lastCancelledFile.size === file.size && 
+            this.lastCancelledFile.lastModified === file.lastModified &&
+            Date.now() - this.lastCancelledTime < 2000) {
+            console.log('Preventing double upload of same file after cancellation');
             event.target.value = '';
+            return;
         }
-    }
-    
-    async processFileUpload(file) {
+
+        if (file.size > 50 * 1024 * 1024) { // 50MB limit
+            this.showToast('File size exceeds 50MB limit', 'error');
+            // Reset file input immediately
+            event.target.value = '';
+            return;
+        }
+
+        // Check if already processing - prevent double uploads
+        if (this.isProcessing) {
+            console.log('Already processing a file, ignoring duplicate upload');
+            event.target.value = '';
+            return;
+        }
+
+        // Add loading class IMMEDIATELY to prevent any flashing
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) appContainer.classList.add('loading');
+
+        // Set processing flag to prevent duplicate uploads
         this.isProcessing = true;
-        this.showLoadingState();
-        this.updateProgress(5, 'Processing PDF...');
+
+        // Load PDF client-side first to prepare the first page icon
+        try {
+            const fileReader = new FileReader();
+            fileReader.onload = async (e) => {
+                if (this.isCancelled) {
+                    console.log('Upload cancelled during file reading');
+                    return;
+                }
+                try {
+                    const typedArray = new Uint8Array(e.target.result);
+                    const tempPDF = await pdfjsLib.getDocument({ data: typedArray }).promise;
+                    if (this.isCancelled) {
+                        console.log('Upload cancelled during PDF loading');
+                        return;
+                    }
+                    this.currentPDF = tempPDF;
+                    await this.updateLoadingIconWithFirstPage();
+                    
+                    if (this.isCancelled) {
+                        console.log('Upload cancelled after loading icon');
+                        return;
+                    }
+                    
+                    // NOW show loading screen with first page ready as icon
+                    this.showLoadingState();
+                    this.updateProgress(10, 'Starting upload...');
+                } catch (error) {
+                    console.error('Failed to load PDF for preview:', error);
+                    if (!this.isCancelled) {
+                        // Fallback: show loading screen anyway
+                        this.showLoadingState();
+                        this.updateProgress(5, 'Starting upload...');
+                    }
+                }
+            };
+            fileReader.readAsArrayBuffer(file);
+        } catch (error) {
+            console.error('Failed to prepare PDF preview:', error);
+            if (!this.isCancelled) {
+                // Fallback: show loading screen anyway
+                this.showLoadingState();
+                this.updateProgress(5, 'Starting upload...');
+            }
+        }
+        
+        // Set up a dynamic timeout based on file size to prevent infinite loading
+        const fileSizeMB = file.size / (1024 * 1024);
+        const timeoutMinutes = Math.max(2, Math.ceil(fileSizeMB / 10));
+        const timeoutDuration = timeoutMinutes * 60000;
+        const loadingTimeout = setTimeout(() => {
+            if (!this.isCancelled) {
+                console.error(`PDF loading timed out after ${timeoutMinutes} minutes`);
+                this.showToast('PDF loading timed out. Please try a smaller PDF file or check your connection.', 'error');
+                this.showEmptyState();
+            }
+        }, timeoutDuration);
         
         try {
             await this.uploadPDF(file);
+            if (!this.isCancelled) {
+                clearTimeout(loadingTimeout); // Clear timeout if successful
+            }
         } catch (error) {
-            console.error('Upload failed:', error);
-            this.showToast('Upload failed: ' + error.message, 'error');
-            this.showEmptyState();
+            clearTimeout(loadingTimeout); // Clear timeout on error
+            if (!this.isCancelled) {
+                console.error('Upload error:', error);
+                this.showToast('Failed to upload PDF: ' + error.message, 'error');
+                this.showEmptyState();
+            }
         } finally {
+            // Always reset processing flags and file input at the very end
             this.isProcessing = false;
-        }
-    }
-    
-    setupEventListeners() {
-        if (this.eventListenersInitialized) return;
-        
-        console.log('Setting up singleton file handlers...');
-        this.eventListenersInitialized = true;
-        
-        // Create singleton file input
-        let fileInput = document.getElementById('fileInput');
-        if (!fileInput) {
-            fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.id = 'fileInput';
-            fileInput.accept = '.pdf';
-            fileInput.style.display = 'none';
-            document.body.appendChild(fileInput);
-        }
-        
-        // Single handler only
-        fileInput.onchange = (event) => {
-            this.handleFileSelect(event);
-        };
-        
-        // Choose button - single handler
-        const chooseBtn = document.getElementById('chooseFileBtn');
-        if (chooseBtn) {
-            chooseBtn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!window.__pdfUploadSingletonLock && !this.isProcessing) {
-                    fileInput.click();
+            this.isHandlingFileSelect = false;
+            
+            // Reset file input to prevent double prompts and re-enable
+            setTimeout(() => {
+                if (event.target) {
+                    event.target.value = '';
+                    event.target.disabled = false; // Re-enable file input
                 }
-            };
+                
+                // Also re-enable the choose file button
+                const chooseFileBtn = document.getElementById('chooseFileBtn');
+                if (chooseFileBtn) {
+                    chooseFileBtn.disabled = false;
+                }
+            }, 50);
         }
     }
+
+    async uploadPDF(file) {
+        if (this.isCancelled) {
+            console.log('Upload cancelled before starting');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('pdf', file);
+
+        try {
+            console.log('Uploading PDF to server...');
+            this.updateProgress(10, 'Uploading PDF to server...');
+            
+            // Create new AbortController for this upload
+            this.currentAbortController = new AbortController();
+            
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData,
+                signal: this.currentAbortController.signal
+            });
+            
+            if (this.isCancelled) {
+                console.log('Upload cancelled during server upload');
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(`Upload failed: ${response.statusText}`);
+            }
+
+            this.updateProgress(25, 'Processing PDF on server...');
+            const result = await response.json();
+            
+            if (this.isCancelled) {
+                console.log('Upload cancelled after server processing');
+                return;
+            }
+            
+            if (result.success) {
+                this.fileId = result.fileId;
+                this.totalPages = result.pageCount;
+                this.thumbnails = result.thumbnails;
+                
+                if (this.isCancelled) {
+                    console.log('Upload cancelled before PDF viewing');
+                    return;
+                }
+                
+                this.updateProgress(30, 'Upload complete, loading PDF for viewing...');
+                console.log('Upload successful, loading PDF for viewing...');
+                await this.loadPDFForViewing(file);
+        
+                if (!this.isCancelled) {
+                    this.showToast('PDF loaded successfully', 'success');
+                }
+            } else {
+                throw new Error(result.error || 'Upload failed');
+            }
+        } catch (error) {
+            if (this.isCancelled) {
+                console.log('Upload cancelled due to network error');
+                return;
+            }
+            console.error('Upload process failed at step:', error.message);
+            throw new Error(`Network error: ${error.message}`);
+        }
+    }
+
+    async loadPDFForViewing(file) {
+        try {
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled before starting');
+                return;
+            }
+
+            console.log('Loading PDF for viewing, file size:', file.size, 'bytes');
+            
+            // Activate background processing support immediately
+            this.activateBackgroundPreservation();
+            
+            // Check if PDF.js is available
+            if (typeof pdfjsLib === 'undefined') {
+                console.error('PDF.js library not loaded - checking script tags...');
+                const scripts = Array.from(document.scripts);
+                const pdfJsScript = scripts.find(s => s.src.includes('pdf.min.js'));
+                console.error('PDF.js script found:', !!pdfJsScript);
+                if (pdfJsScript) {
+                    console.error('PDF.js script src:', pdfJsScript.src);
+                    console.error('PDF.js script loaded:', pdfJsScript.readyState);
+                }
+                throw new Error('PDF.js library not loaded');
+            }
+            
+            console.log('PDF.js library available, loading document...');
+            this.updateProgress(35, 'Loading PDF document...');
+
+            if (this.isCancelled) {
+                console.log('PDF loading cancelled before array buffer');
                 return;
             }
 
@@ -1202,72 +1369,6 @@ class PDFComposerApp {
             // Deactivate background preservation on error
             this.deactivateBackgroundPreservation();
             
-            throw new Error(`Failed to load PDF for viewing: ${error.message}`);
-        }
-    }
-
-    async uploadPDF(file) {
-        const formData = new FormData();
-        formData.append('pdf', file);
-
-        try {
-            this.updateProgress(10, 'Uploading PDF...');
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                throw new Error(`Upload failed: ${response.statusText}`);
-            }
-
-            const result = await response.json();
-            
-            if (result.success) {
-                this.fileId = result.fileId;
-                this.totalPages = result.pageCount;
-                
-                // Use server-provided thumbnails if available, otherwise generate
-                if (result.thumbnails && result.thumbnails.length > 0) {
-                    this.thumbnails = result.thumbnails;
-                    this.showPDFViewer();
-                    this.renderThumbnails();
-                    this.updateTechnicalInfo(result.filename, result.pageCount);
-                    this.showToast('PDF loaded successfully', 'success');
-                } else {
-                    // Load PDF for viewing and generate thumbnails
-                    await this.loadPDFForViewing(file);
-                    this.updateTechnicalInfo(result.filename, result.pageCount);
-                    this.showToast('PDF loaded successfully', 'success');
-                }
-            } else {
-                throw new Error(result.error || 'Upload failed');
-            }
-        } catch (error) {
-            throw new Error(`Network error: ${error.message}`);
-        }
-    }
-
-    async loadPDFForViewing(file) {
-        try {
-            // Check if PDF.js is available
-            if (typeof pdfjsLib === 'undefined') {
-                throw new Error('PDF.js library not loaded');
-            }
-
-            this.updateProgress(30, 'Loading PDF...');
-            const arrayBuffer = await file.arrayBuffer();
-            this.currentPDF = await pdfjsLib.getDocument(arrayBuffer).promise;
-            this.currentPage = 0;
-            
-            this.updateProgress(50, 'Generating thumbnails...');
-            await this.generateAllThumbnails();
-            
-            this.completeProgress();
-            this.showPDFViewer();
-            this.renderThumbnails();
-            
-        } catch (error) {
             throw new Error(`Failed to load PDF for viewing: ${error.message}`);
         }
     }
