@@ -982,6 +982,9 @@ const loadingTimeout = setTimeout(() => {
             console.error('Upload error:', error);
             this.showToast('Failed to upload PDF: ' + error.message, 'error');
             this.showEmptyState();
+        } finally {
+            // Reset file input to allow selecting the same file again
+            event.target.value = '';
         }
     }
 
@@ -3325,6 +3328,20 @@ const loadingTimeout = setTimeout(() => {
         this.loadingIconInProgress = true;
         
         try {
+            // Cancel any ongoing render operations on this canvas
+            const context = canvas.getContext('2d');
+            if (this.currentRenderTask) {
+                try {
+                    this.currentRenderTask.cancel();
+                } catch (e) {
+                    // Ignore cancellation errors
+                }
+                this.currentRenderTask = null;
+            }
+            
+            // Clear the canvas completely
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            
             console.log('🔄 Getting first page for loading icon...');
             
             // Use the existing PDF instance instead of creating a new one
@@ -3353,8 +3370,8 @@ const loadingTimeout = setTimeout(() => {
             
             console.log('🖼️ Canvas dimensions set to:', canvas.width, 'x', canvas.height, 'display:', targetSize + 'px');
             
-            // Render the page
-            const context = canvas.getContext('2d');
+            // Clear again after resizing
+            context.clearRect(0, 0, canvas.width, canvas.height);
             
             // Set white background first to ensure visibility
             context.fillStyle = '#ffffff';
@@ -3362,10 +3379,14 @@ const loadingTimeout = setTimeout(() => {
             
             console.log('🎨 Starting page render for loading icon...');
             
-            await page.render({
+            // Store the render task to allow cancellation
+            this.currentRenderTask = page.render({
                 canvasContext: context,
                 viewport: viewport
-            }).promise;
+            });
+            
+            await this.currentRenderTask.promise;
+            this.currentRenderTask = null;
             
             console.log('✅ Loading icon rendered successfully');
             
@@ -3373,9 +3394,12 @@ const loadingTimeout = setTimeout(() => {
             this.startLoadingAnimation(canvas);
             
         } catch (error) {
-            console.error('❌ Loading icon error:', error);
+            if (error.name !== 'RenderingCancelledException') {
+                console.error('❌ Loading icon error:', error);
+            }
         } finally {
             this.loadingIconInProgress = false;
+            this.currentRenderTask = null;
         }
     }
 
