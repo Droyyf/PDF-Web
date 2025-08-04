@@ -174,48 +174,36 @@ body {
     padding: 40px;
 }
 
-.upload-card {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 40px;
-    text-align: center;
-    max-width: 400px;
-    width: 100%;
-}
-
-.card-icon {
-    font-size: 48px;
-    margin-bottom: 20px;
-}
-
-.upload-card h3 {
-    font-size: 24px;
-    margin-bottom: 10px;
+.flat-upload-btn {
+    background: transparent;
     color: #ff6b9d;
-    letter-spacing: 1px;
-}
-
-.upload-card p {
-    margin-bottom: 20px;
-    color: var(--text-secondary);
-}
-
-.upload-card-btn {
-    background: #ff6b9d;
-    color: #000;
-    border: none;
-    padding: 12px 24px;
+    border: 2px solid #ff6b9d;
+    padding: 20px 40px;
     font-family: 'Courier New', monospace;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 0;
     transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
 
-.upload-card-btn:hover {
-    background: #ff8fb3;
+.flat-upload-btn:hover {
+    background: #ff6b9d;
+    color: #000;
+}
+
+.btn-icon {
+    font-size: 32px;
+}
+
+.btn-text {
+    font-size: 16px;
 }
 
 /* PDF Viewer */
