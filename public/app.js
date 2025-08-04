@@ -466,6 +466,15 @@ class PDFComposerApp {
 
         // Keyboard shortcuts
         document.addEventListener('keydown', this.handleKeyPress.bind(this));
+        
+        // H1 button click handler for returning to empty state
+        const appTitle = document.getElementById('appTitle');
+        if (appTitle) {
+            appTitle.addEventListener('click', () => {
+                console.log('H1 button clicked - returning to empty state');
+                this.showEmptyState();
+            });
+        }
     }
 
     setupBackgroundProcessingSupport() {
@@ -3328,12 +3337,25 @@ const loadingTimeout = setTimeout(() => {
             return;
         }
         
+        // Check if canvas is visible and has proper dimensions
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+            console.log('⚠️ Canvas has zero dimensions, skipping render');
+            return;
+        }
+        
+        // Get canvas context with error handling
+        const context = canvas.getContext('2d');
+        if (!context) {
+            console.error('❌ Failed to get canvas 2D context');
+            return;
+        }
+        
         // Set flag immediately to prevent race conditions
         this.loadingIconInProgress = true;
         
         try {
             // Cancel any ongoing render operations on this canvas
-            const context = canvas.getContext('2d');
             if (this.currentRenderTask) {
                 try {
                     console.log('🚫 Cancelling previous render task...');

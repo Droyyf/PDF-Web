@@ -681,9 +681,10 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 999;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+    pointer-events: none;
 }
 
 /* Disable all transitions during loading to prevent flashing */
@@ -730,8 +731,9 @@ body {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
-    z-index: 1000 !important;
+    z-index: 1001 !important;
     pointer-events: auto !important;
+    position: relative;
 }
 
 .app-header .app-title {
