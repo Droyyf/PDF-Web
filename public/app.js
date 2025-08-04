@@ -119,6 +119,11 @@ class PDFComposerApp {
                     
                 case 'COMPLETE':
                     console.log('Worker completed thumbnail generation');
+                    if (this.isCancelled) {
+                        console.log('Worker completed but was cancelled - not showing PDF viewer');
+                        this.onThumbnailGenerationCancelled();
+                        return;
+                    }
                     if (thumbnails) {
                         this.thumbnails = thumbnails;
                     }
@@ -127,6 +132,11 @@ class PDFComposerApp {
                     
                 case 'ERROR':
                     console.error('Worker error:', error);
+                    if (this.isCancelled) {
+                        console.log('Worker error occurred but was cancelled - handling as cancelled');
+                        this.onThumbnailGenerationCancelled();
+                        return;
+                    }
                     this.onThumbnailGenerationError(error);
                     break;
                     
@@ -308,6 +318,13 @@ class PDFComposerApp {
     onThumbnailGenerationComplete() {
         console.log('All thumbnails generated successfully');
         
+        // Check if cancelled before proceeding
+        if (this.isCancelled) {
+            console.log('Thumbnail generation completed but was cancelled - not showing PDF viewer');
+            this.onThumbnailGenerationCancelled();
+            return;
+        }
+        
         // Hide thumbnail loading state
         const loadingElement = document.getElementById('thumbnailsLoading');
         if (loadingElement) {
@@ -319,7 +336,11 @@ class PDFComposerApp {
         
         // Small delay to show 100% completion, then show PDF viewer
         setTimeout(() => {
-            this.showPDFViewer();
+            if (!this.isCancelled) {
+                this.showPDFViewer();
+            } else {
+                console.log('Cancelled during completion delay - not showing PDF viewer');
+            }
         }, 500);
         
         // Clear processing state
@@ -331,6 +352,13 @@ class PDFComposerApp {
     
     onThumbnailGenerationError(error) {
         console.error('Thumbnail generation failed:', error);
+        
+        // Check if cancelled - don't show error UI if cancelled
+        if (this.isCancelled) {
+            console.log('Thumbnail generation failed but was cancelled - not showing error UI');
+            this.onThumbnailGenerationCancelled();
+            return;
+        }
         
         // Hide thumbnail loading state
         const loadingElement = document.getElementById('thumbnailsLoading');
@@ -351,7 +379,11 @@ class PDFComposerApp {
         this.completeProgress();
         
         setTimeout(() => {
-            this.showPDFViewer();
+            if (!this.isCancelled) {
+                this.showPDFViewer();
+            } else {
+                console.log('Cancelled during error delay - not showing PDF viewer');
+            }
         }, 500);
         
         // Clear processing state
@@ -1497,8 +1529,14 @@ class PDFComposerApp {
             console.log(`Total throttle detections: ${throttleDetectionCount}`);
             console.log(`Final visibility state: ${document.visibilityState}`);
             
-            // Complete processing
-            this.onThumbnailGenerationComplete();
+            // Check if cancelled before calling completion handler
+            if (!this.isCancelled) {
+                // Complete processing only if not cancelled
+                this.onThumbnailGenerationComplete();
+            } else {
+                console.log('=== THUMBNAIL DEBUG: Generation cancelled - skipping completion ===');
+                this.onThumbnailGenerationCancelled();
+            }
             
         } catch (error) {
             console.error('Error generating thumbnails:', error);
