@@ -18,6 +18,7 @@ class PDFComposerApp {
         this.workerSupported = typeof Worker !== 'undefined';
         this.pdfArrayBuffer = null; // Store PDF data for worker processing
         this.loadingIconInProgress = false; // Prevent concurrent loading icon renders
+        this.lastLoadingIconUpdate = 0; // Debounce loading icon updates
         
         // Cover transform state
         this.coverTransform = {
@@ -3318,12 +3319,14 @@ const loadingTimeout = setTimeout(() => {
     }
     
     async updateLoadingIconWithFirstPage() {
-        // Prevent multiple concurrent calls with a more robust check
-        if (this.loadingIconInProgress) {
-            console.log('🔄 Loading icon already in progress, skipping...');
+        // Prevent multiple concurrent calls with debounce
+        const now = Date.now();
+        if (this.loadingIconInProgress || (now - this.lastLoadingIconUpdate) < 1000) {
+            console.log('🔄 Loading icon update debounced/skipped');
             return;
         }
         
+        this.lastLoadingIconUpdate = now;
         console.log('🔄 Starting loading icon update...');
         
         if (!this.currentPDF) {
@@ -3331,23 +3334,16 @@ const loadingTimeout = setTimeout(() => {
             return;
         }
         
-        const canvas = document.getElementById('loadingPreviewCanvas');
-        if (!canvas) {
+        const originalCanvas = document.getElementById('loadingPreviewCanvas');
+        if (!originalCanvas) {
             console.log('❌ Loading canvas not found');
             return;
         }
         
         // Check if canvas is visible and has proper dimensions
-        const rect = canvas.getBoundingClientRect();
+        const rect = originalCanvas.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) {
             console.log('⚠️ Canvas has zero dimensions, skipping render');
-            return;
-        }
-        
-        // Get canvas context with error handling
-        const context = canvas.getContext('2d');
-        if (!context) {
-            console.error('❌ Failed to get canvas 2D context');
             return;
         }
         
@@ -3355,18 +3351,25 @@ const loadingTimeout = setTimeout(() => {
         this.loadingIconInProgress = true;
         
         try {
-            // Ensure any previous render task is completely cancelled
+            // Cancel any ongoing operations
             await this.cancelCurrentRenderTask();
+            this.stopLoadingAnimation();
             
-            // Reset canvas to a clean state
-            this.resetCanvasState(canvas, context);
+            // Create a completely new canvas to avoid reuse conflicts
+            const newCanvas = document.createElement('canvas');
+            newCanvas.id = 'loadingPreviewCanvas';
+            newCanvas.className = originalCanvas.className;
+            newCanvas.style.cssText = originalCanvas.style.cssText;
+            
+            // Replace old canvas with new one
+            originalCanvas.parentNode.replaceChild(newCanvas, originalCanvas);
             
             console.log('🔄 Getting first page for loading icon...');
             
-            // Use the existing PDF instance instead of creating a new one
+            // Use the existing PDF instance
             const page = await this.currentPDF.getPage(1);
             
-            // Get original viewport dimensions at scale 1.0
+            // Get original viewport dimensions
             const originalViewport = page.getViewport({ scale: 1.0 });
             console.log('📄 Original page dimensions:', originalViewport.width, 'x', originalViewport.height);
             
@@ -3376,39 +3379,39 @@ const loadingTimeout = setTimeout(() => {
             const scaleY = targetSize / originalViewport.height;
             const scale = Math.min(scaleX, scaleY);
             
-            console.log('🔧 Calculated scale for loading icon:', scale);
-            
             // Create viewport with calculated scale
             const viewport = page.getViewport({ scale });
             
-            // Set canvas size to match scaled viewport exactly
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            canvas.style.width = targetSize + 'px';
-            canvas.style.height = targetSize + 'px';
+            // Set canvas dimensions
+            newCanvas.width = viewport.width;
+            newCanvas.height = viewport.height;
+            newCanvas.style.width = targetSize + 'px';
+            newCanvas.style.height = targetSize + 'px';
             
-            console.log('🖼️ Canvas dimensions set to:', canvas.width, 'x', canvas.height, 'display:', targetSize + 'px');
+            // Get fresh context
+            const context = newCanvas.getContext('2d');
+            if (!context) {
+                console.error('❌ Failed to get canvas 2D context');
+                return;
+            }
             
-            // Clear again after resizing
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Set white background first to ensure visibility
+            // Clear and set background
+            context.clearRect(0, 0, newCanvas.width, newCanvas.height);
             context.fillStyle = '#ffffff';
-            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.fillRect(0, 0, newCanvas.width, newCanvas.height);
             
             console.log('🎨 Starting page render for loading icon...');
             
-            // Create a new render task with a fresh canvas
+            // Create render task on the new canvas
             const renderTask = page.render({
                 canvasContext: context,
                 viewport: viewport,
-                // Ensure we don't reuse the same canvas instance
                 intent: 'display'
             });
             
             this.currentRenderTask = renderTask;
             
-            // Use Promise.race to handle both success and cancellation with timeout
+            // Wait for render completion with timeout
             await Promise.race([
                 renderTask.promise,
                 new Promise((_, reject) => 
@@ -3416,12 +3419,10 @@ const loadingTimeout = setTimeout(() => {
                 )
             ]);
             
-            console.log('✅ Render task completed successfully');
-            
             console.log('✅ Loading icon rendered successfully');
             
-            // Start enhanced animation after rendering
-            this.startLoadingAnimation(canvas);
+            // Start animation on the new canvas
+            this.startLoadingAnimation(newCanvas);
             
         } catch (error) {
             if (error.name === 'RenderingCancelledException') {
@@ -3430,8 +3431,11 @@ const loadingTimeout = setTimeout(() => {
                 console.error('❌ Loading icon error:', error);
             }
         } finally {
-            this.loadingIconInProgress = false;
-            this.currentRenderTask = null;
+            // Ensure cleanup happens after a small delay to prevent race conditions
+            setTimeout(() => {
+                this.loadingIconInProgress = false;
+                this.currentRenderTask = null;
+            }, 100);
         }
     }
 
@@ -3472,6 +3476,12 @@ const loadingTimeout = setTimeout(() => {
         // Stop any existing animation
         this.stopLoadingAnimation();
         
+        // Ensure canvas exists and is valid
+        if (!canvas || !canvas.parentNode) {
+            console.log('⚠️ Canvas not found for animation, skipping...');
+            return;
+        }
+        
         let rotation = 0;
         let scale = 1;
         let scaleDirection = 1;
@@ -3479,6 +3489,12 @@ const loadingTimeout = setTimeout(() => {
         let opacityDirection = -1;
         
         const animate = () => {
+            // Check if canvas is still valid
+            if (!canvas || !canvas.parentNode) {
+                this.stopLoadingAnimation();
+                return;
+            }
+            
             // Smooth rotation
             rotation += 2;
             
