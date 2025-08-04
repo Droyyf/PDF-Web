@@ -412,66 +412,39 @@ class PDFComposerApp {
     }
 
     setupEventListeners() {
-        if (this.eventListenersInitialized) {
-            console.log('Event listeners already initialized, skipping');
-            return;
-        }
+        if (this.eventListenersInitialized) return;
         
-        console.log('Setting up event listeners...');
+        console.log('Setting up singleton file handlers...');
         this.eventListenersInitialized = true;
         
-        // File input - use once: true to prevent duplicate listeners
-        const fileInput = document.getElementById('fileInput');
-        if (fileInput) {
-            // Remove any existing listeners first
-            const newFileInput = fileInput.cloneNode(true);
-            fileInput.parentNode.replaceChild(newFileInput, fileInput);
-            newFileInput.addEventListener('change', this.handleFileSelect.bind(this), { once: true });
-            console.log('File input listener added with once: true');
-        } else {
-            console.error('File input not found');
+        // Create singleton file input
+        let fileInput = document.getElementById('fileInput');
+        if (!fileInput) {
+            fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.id = 'fileInput';
+            fileInput.accept = '.pdf';
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
         }
-
-        // Center upload button only - use once: true
-        const chooseFileBtn = document.getElementById('chooseFileBtn');
         
-        if (chooseFileBtn) {
-            // Remove any existing listeners first
-            const newChooseFileBtn = chooseFileBtn.cloneNode(true);
-            chooseFileBtn.parentNode.replaceChild(newChooseFileBtn, chooseFileBtn);
-            
-            newChooseFileBtn.addEventListener('click', (e) => {
+        // Single handler only - using direct assignment to prevent duplicates
+        fileInput.onchange = (event) => {
+            this.handleFileSelect(event);
+        };
+        
+        // Choose button - single handler using direct assignment
+        const chooseBtn = document.getElementById('chooseFileBtn');
+        if (chooseBtn) {
+            chooseBtn.onclick = (e) => {
                 e.preventDefault();
-                e.stopPropagation(); // Prevent any bubbling
-                
-                const now = Date.now();
-                if (this.lastUploadTime && now - this.lastUploadTime < 1000) {
-                    console.log('Choose file button debounced');
-                    return;
+                e.stopPropagation();
+                if (!window.__pdfUploadSingletonLock) {
+                    fileInput.click();
                 }
-                if (this.isHandlingFileSelect) {
-                    console.log('File selection in progress, ignoring button click');
-                    return;
-                }
-                
-                console.log('Choose file button clicked');
-                const fileInputEl = document.getElementById('fileInput');
-                if (fileInputEl) {
-                    // Disable button during processing
-                    e.target.disabled = true;
-                    fileInputEl.click();
-                } else {
-                    console.error('File input not found when button clicked');
-                }
-            }, { once: true });
-            console.log('Choose file button listener added with once: true');
-        } else {
-            console.error('Choose file button not found');
+            };
         }
-
-        // PDF navigation removed - using preview only
-
-
+        
         // Selection panel controls
         const closeSelectionBtn = document.getElementById('closeSelection');
         const composeBtnEl = document.getElementById('composeBtn');
@@ -549,7 +522,7 @@ class PDFComposerApp {
             });
         }
     }
-
+    
     setupBackgroundProcessingSupport() {
         // Enhanced Page Visibility API handling
         if (typeof document.visibilityState !== 'undefined') {
@@ -1014,84 +987,113 @@ class PDFComposerApp {
     }
 
     async handleFileSelect(event) {
-        // Prevent re-entrant calls and rapid double clicks
-        if (this.isHandlingFileSelect) {
-            console.log('Already handling file selection, ignoring duplicate');
+        // Absolute prevention of double file selection prompt
+        if (window.__pdfUploadSingletonLock) {
+            console.log('Singleton lock active - preventing double prompt');
             event.target.value = '';
             return;
         }
         
+        // Set global singleton lock
+        window.__pdfUploadSingletonLock = true;
+        
+        // Multi-layer protection
         const now = Date.now();
-        if (this.lastUploadTime && now - this.lastUploadTime < 1000) {
-            console.log('Preventing rapid double upload click');
+        if (this.isHandlingFileSelect || 
+            (this.lastUploadTime && now - this.lastUploadTime < 2000)) {
+            console.log('Rapid duplicate prevented');
+            window.__pdfUploadSingletonLock = false;
             event.target.value = '';
             return;
         }
-        
-        // Prevent duplicate file selection (same file selected twice)
-        if (this.currentFileInfo && 
-            this.currentFileInfo.name === event.target.files[0]?.name &&
-            this.currentFileInfo.size === event.target.files[0]?.size &&
-            this.currentFileInfo.lastModified === event.target.files[0]?.lastModified) {
-            console.log('Preventing duplicate file selection');
-            event.target.value = '';
-            return;
-        }
-        
-        // Disable file input immediately to prevent multiple selections
-        event.target.disabled = true;
         
         this.isHandlingFileSelect = true;
         this.lastUploadTime = now;
         
-        // Reset cancellation flag for new upload
-        this.isCancelled = false;
-        
-        const file = event.target.files[0];
-        if (!file || file.type !== 'application/pdf') {
-            this.showToast('Please select a valid PDF file', 'error');
-            // Reset file input immediately
+        try {
+            const file = event.target.files[0];
+            if (!file || file.type !== 'application/pdf') {
+                this.showToast('Please select a valid PDF file', 'error');
+                return;
+            }
+            
+            if (file.size > 50 * 1024 * 1024) {
+                this.showToast('File size exceeds 50MB limit', 'error');
+                return;
+            }
+            
+            if (this.currentDocument && !confirm('Replace current document?')) {
+                return;
+            }
+            
+            await this.processFileUpload(file);
+            
+        } finally {
+            // Always reset state
+            this.isHandlingFileSelect = false;
+            window.__pdfUploadSingletonLock = false;
             event.target.value = '';
-            return;
+            
+            // Re-enable controls
+            setTimeout(() => {
+                event.target.disabled = false;
+                const chooseBtn = document.getElementById('chooseFileBtn');
+                if (chooseBtn) chooseBtn.disabled = false;
+            }, 100);
+        }
+    }
+    
+    async processFileUpload(file) {
+        this.isProcessing = true;
+        this.showLoadingState();
+        this.updateProgress(5, 'Processing PDF...');
+        
+        try {
+            await this.uploadPDF(file);
+        } catch (error) {
+            console.error('Upload failed:', error);
+            this.showToast('Upload failed: ' + error.message, 'error');
+            this.showEmptyState();
+        } finally {
+            this.isProcessing = false;
+        }
+    }
+    
+    // Replace the entire file input system with singleton
+    setupEventListeners() {
+        if (this.eventListenersInitialized) return;
+        
+        console.log('Setting up singleton file handlers...');
+        this.eventListenersInitialized = true;
+        
+        // Create singleton file input
+        let fileInput = document.getElementById('fileInput');
+        if (!fileInput) {
+            fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.id = 'fileInput';
+            fileInput.accept = '.pdf';
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
         }
         
-        // Store file info for cancellation tracking
-        this.currentFileInfo = {
-            name: file.name,
-            size: file.size,
-            lastModified: file.lastModified
+        // Single handler only
+        fileInput.onchange = (event) => {
+            this.handleFileSelect(event);
         };
         
-        // Prevent double upload by checking if we just cancelled
-        if (this.lastCancelledFile && this.lastCancelledFile.name === file.name && 
-            this.lastCancelledFile.size === file.size && 
-            this.lastCancelledFile.lastModified === file.lastModified &&
-            Date.now() - this.lastCancelledTime < 2000) {
-            console.log('Preventing double upload of same file after cancellation');
-            event.target.value = '';
-            return;
+        // Choose button - single handler
+        const chooseBtn = document.getElementById('chooseFileBtn');
+        if (chooseBtn) {
+            chooseBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!window.__pdfUploadSingletonLock) {
+                    fileInput.click();
+                }
+            };
         }
-
-        if (file.size > 50 * 1024 * 1024) { // 50MB limit
-            this.showToast('File size exceeds 50MB limit', 'error');
-            // Reset file input immediately
-            event.target.value = '';
-            return;
-        }
-
-        // Check if already processing - prevent double uploads
-        if (this.isProcessing) {
-            console.log('Already processing a file, ignoring duplicate upload');
-            event.target.value = '';
-            return;
-        }
-
-        // Add loading class IMMEDIATELY to prevent any flashing
-        const appContainer = document.querySelector('.app-container');
-        if (appContainer) appContainer.classList.add('loading');
-
-        // Set processing flag to prevent duplicate uploads
-        this.isProcessing = true;
+    }
 
         // Load PDF client-side first to prepare the first page icon
         try {
