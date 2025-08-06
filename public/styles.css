@@ -143,6 +143,46 @@ body {
     flex-direction: column;
 }
 
+.empty-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    padding: 40px;
+    gap: 32px;
+}
+
+.upload-prompt {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.upload-icon {
+    font-size: 48px;
+    opacity: 0.8;
+}
+
+.upload-title {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #ff6b9d;
+    margin: 0;
+}
+
+.upload-subtitle {
+    font-size: 16px;
+    color: #ccc;
+    opacity: 0.7;
+    margin: 0;
+    letter-spacing: 1px;
+}
+
 .empty-state-header {
     background: #ff6b9d;
     color: #000;
