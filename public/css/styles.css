@@ -82,6 +82,8 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .rail-row.active .rail-thumb { border-color: var(--paper); }
 .rail-row.has-cit .rail-thumb { color: var(--rose-light); }
 .rail-shape { width: 86%; height: 86%; display: block; }
+/* Real first-page thumbnail — contained so any page aspect shows whole over the ink field */
+.rail-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .rail-thumb--all { background: var(--paper-deep); color: var(--ink); }
 .rail-row.active .rail-thumb--all { background: var(--noir); color: var(--paper); border-color: var(--paper); }
 .rail-thumb--all svg { width: 70%; height: 70%; display: block; }
@@ -241,6 +243,7 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .mode-btn + .mode-btn { border-left: var(--rule); }
 .mode-btn.active { background: var(--ink); color: var(--paper); }
 .preview-actions { display: flex; gap: 8px; align-items: center; }
+.cover-hint { font-family: var(--f-mono); font-size: 0.62rem; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ochre); border: 1px solid var(--ochre); padding: 3px 8px; white-space: nowrap; cursor: help; }
 .frame-label { display: inline-flex; align-items: center; gap: 6px; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
 
 /* ---- Overview panel (All / combined): combined preview only; rail absorbs the doc grid ---- */

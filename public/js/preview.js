@@ -29,6 +29,7 @@ export function initPreview() {
         previewList: document.getElementById('previewList'),
         previewEmpty: document.getElementById('previewEmpty'),
         resetBtn: document.getElementById('resetCoverBtn'),
+        coverHint: document.getElementById('coverHint'),
     };
 
     el.resetBtn?.addEventListener('click', () => {
@@ -44,6 +45,12 @@ export function initPreview() {
     subscribe((reason) => {
         if (reason === 'cover' || reason === 'cleared' || reason === 'loaded') {
             invalidateCoverCache(getActiveDoc());
+        }
+        // Selection toggles diff the existing cards instead of rebuilding everything —
+        // with many citations selected, a full re-render per toggle re-rasterized every page.
+        if (reason === 'selection' && canDiffSelection()) {
+            applySelectionDiff();
+            return;
         }
         if (['selection', 'cover', 'mode', 'frame', 'loaded', 'cleared', 'tab', 'docs-added'].includes(reason)) {
             render();
@@ -63,12 +70,7 @@ async function render() {
     const citations = doc ? [...doc.selectedCitations].sort((a, b) => a - b) : [];
     const hasWork = !!doc?.pdfDoc && citations.length > 0;
 
-    if (el.resetBtn) {
-        el.resetBtn.classList.toggle(
-            'hidden',
-            !(hasWork && doc.mode === 'top' && doc.coverPage !== null)
-        );
-    }
+    updateHeaderState(hasWork, doc);
 
     if (!hasWork) {
         el.previewList.innerHTML = '';
@@ -97,6 +99,62 @@ async function render() {
 
     el.previewList.innerHTML = '';
     el.previewList.appendChild(frag);
+    applyCoverTransformToAll();
+}
+
+/** Reset-cover button + no-cover hint reflect the active doc's state. */
+function updateHeaderState(hasWork, doc) {
+    const needsReset = !!(hasWork && doc.mode === 'top' && doc.coverPage !== null);
+    if (el.resetBtn) el.resetBtn.classList.toggle('hidden', !needsReset);
+    if (el.coverHint) {
+        el.coverHint.classList.toggle('hidden', !(hasWork && doc.coverPage === null));
+    }
+}
+
+/**
+ * Selection toggles usually only add or remove cards — when the preview already shows this
+ * document's citations, diff the DOM instead of re-rendering every card (keeps scroll
+ * position and avoids re-rasterizing unchanged pages).
+ */
+function canDiffSelection() {
+    const doc = getActiveDoc();
+    return !!doc?.pdfDoc
+        && doc.selectedCitations.size > 0
+        && !!el.previewList.querySelector('.composition-card');
+}
+
+async function applySelectionDiff() {
+    const token = ++renderToken;
+    const doc = getActiveDoc();
+
+    updateHeaderState(true, doc);
+
+    const cover = await getCoverHiRes(doc);
+    if (token !== renderToken) return;
+    currentCover = cover;
+    const containerW = el.previewList.clientWidth || 700;
+
+    // Drop cards for deselected citations.
+    el.previewList.querySelectorAll('.composition-card').forEach((card) => {
+        if (!doc.selectedCitations.has(Number(card.dataset.citation))) card.remove();
+    });
+
+    // Add cards for new citations and re-append every card in sorted order (moving an
+    // existing node is cheap — no re-render — and this keeps the DOM in citation order).
+    const wanted = [...doc.selectedCitations].sort((a, b) => a - b);
+    for (const ci of wanted) {
+        if (token !== renderToken) return;
+        let card = el.previewList.querySelector(`.composition-card[data-citation="${ci}"]`);
+        if (!card) {
+            const page = await doc.pdfDoc.getPage(ci + 1);
+            if (token !== renderToken) return;
+            card = doc.mode === 'sidebyside'
+                ? await buildSideBySideCard(doc, page, cover, ci, containerW)
+                : await buildTopCard(doc, page, cover, ci, containerW, true);
+            if (token !== renderToken) return;
+        }
+        el.previewList.appendChild(card);
+    }
     applyCoverTransformToAll();
 }
 

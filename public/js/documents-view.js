@@ -47,6 +47,18 @@ export function initDocumentsView() {
 
     el.addPdfBtn?.addEventListener('click', () => el.fileInput.click());
 
+    // Re-render the combined preview when the window is resized while on the All tab
+    // (otherwise the combined cards keep the width they were rendered at).
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            if (state.activeTab === 'all' && state.documents.some((d) => d.selectedCitations.size > 0)) {
+                renderCombinedPreview();
+            }
+        }, 200);
+    });
+
     subscribe((reason) => {
         const hasDocs = state.documents.length > 0;
 
@@ -128,6 +140,38 @@ function renderRail() {
     el.railDocs.appendChild(frag);
 }
 
+/**
+ * Render a doc's FIRST PAGE once as the rail row's thumbnail (real page, not line-art).
+ * Sized for the ~48×64px display box at 2× (96×128) — sharp, and cheap per doc. The URL is
+ * cached on the doc and revoked by destroyDoc().
+ */
+async function ensureRailThumb(doc) {
+    if (!doc.pdfDoc) return null;
+    if (doc.railThumb) return doc.railThumb;
+    if (!doc._railThumbPromise) {
+        doc._railThumbPromise = (async () => {
+            const page = await doc.pdfDoc.getPage(1);
+            const native = page.getViewport({ scale: 1 });
+            const scale = Math.min(96 / native.width, 128 / native.height);
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(viewport.width));
+            canvas.height = Math.max(1, Math.round(viewport.height));
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            page.cleanup();
+            const blob = await new Promise((res, rej) =>
+                canvas.toBlob((b) => (b ? res(b) : rej(new Error('toBlob failed'))), 'image/png')
+            );
+            doc.railThumb = URL.createObjectURL(blob);
+            return doc.railThumb;
+        })().catch((err) => {
+            console.warn('Rail thumbnail failed:', err);
+            return null;
+        });
+    }
+    return doc._railThumbPromise;
+}
+
 function buildRailRow(doc, idx) {
     const row = document.createElement('button');
     row.type = 'button';
@@ -139,8 +183,29 @@ function buildRailRow(doc, idx) {
 
     const thumb = document.createElement('span');
     thumb.className = 'rail-thumb';
-    thumb.setAttribute('aria-hidden', 'true');
-    thumb.appendChild(lineArtShape(idx));
+    if (doc.railThumb) {
+        // Real first-page thumbnail (rendered once per doc by ensureRailThumb below).
+        const img = document.createElement('img');
+        img.alt = '';
+        img.src = doc.railThumb;
+        thumb.appendChild(img);
+    } else {
+        // Placeholder identity mark until the first-page render lands.
+        thumb.setAttribute('aria-hidden', 'true');
+        thumb.appendChild(lineArtShape(idx));
+        if (doc.pdfDoc) {
+            ensureRailThumb(doc).then((url) => {
+                if (!url) return;
+                const live = document.querySelector(`.rail-row[data-tab="${doc.id}"] .rail-thumb`);
+                if (live && !live.querySelector('img')) {
+                    const img = document.createElement('img');
+                    img.alt = '';
+                    img.src = url;
+                    live.replaceChildren(img);
+                }
+            }).catch(() => { /* keep the line-art placeholder */ });
+        }
+    }
 
     const info = document.createElement('span');
     info.className = 'rail-info';
@@ -233,7 +298,7 @@ async function renderCombinedPreview() {
 
         const header = document.createElement('div');
         header.className = 'combined-doc-header';
-        header.textContent = doc.baseName;
+        header.textContent = doc.coverPage === null ? `${doc.baseName} — no cover` : doc.baseName;
         frag.appendChild(header);
 
         const cover = await getCoverHiRes(doc);

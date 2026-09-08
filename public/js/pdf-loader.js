@@ -205,11 +205,13 @@ async function loadDoc(doc) {
     doc.coverPage = 0; // auto-select first page as cover
 }
 
-/** Free every resource a doc holds: pdf.js worker buffers, the source blob URL, thumb URLs. */
+/** Free every resource a doc holds: pdf.js worker buffers, source + thumbnail blob URLs. */
 export function destroyDoc(doc) {
     try { doc.pdfDoc?.destroy(); } catch { /* already destroyed */ }
     doc.pdfDoc = null;
     if (doc.srcUrl) { URL.revokeObjectURL(doc.srcUrl); doc.srcUrl = null; }
+    if (doc.railThumb) { URL.revokeObjectURL(doc.railThumb); doc.railThumb = null; }
+    doc._railThumbPromise = null;
     for (const url of doc.thumbnails || []) {
         if (url) URL.revokeObjectURL(url);
     }
