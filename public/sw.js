@@ -8,7 +8,7 @@
 //
 // To force a fresh shell after a release, bump CACHE_NAME.
 
-const CACHE_NAME = 'pdfw-v2';
+const CACHE_NAME = 'pdfw-v3';
 
 const PRECACHE = [
     '/',
@@ -64,9 +64,36 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
     const req = event.request;
-    // Only handle GET requests on this origin. Anything else (POST, cross-origin) bypasses the SW.
+    // Only handle GET requests.
     if (req.method !== 'GET') return;
     const url = new URL(req.url);
+    // Never intercept blob:/data: URLs — they're context-scoped (pdf.js loads user PDFs via
+    // blob URLs) and cannot be fetched from inside the SW.
+    if (url.protocol === 'blob:' || url.protocol === 'data:') return;
+
+    // Google Fonts (the only external origin): cache-first with CORS responses, so after the
+    // first visit the app — including its typography — works fully offline. The stylesheet
+    // <link> carries crossorigin="anonymous", which makes its response CORS-introspectable
+    // (cacheable) instead of opaque.
+    if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+        event.respondWith(
+            caches.open(CACHE_NAME).then(async (cache) => {
+                const hit = await cache.match(req.url);
+                if (hit) return hit;
+                try {
+                    const res = await fetch(req);
+                    if (res && res.ok && res.type === 'cors') cache.put(req, res.clone());
+                    return res;
+                } catch (err) {
+                    return hit || Response.error();
+                }
+            })
+        );
+        return;
+    }
+
+    // Anything else cross-origin passes straight through to the network so the SW never
+    // accidentally caches an opaque response we can't introspect.
     if (url.origin !== self.location.origin) return;
 
     event.respondWith(

@@ -206,7 +206,9 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 /* ---- Page list ---- */
 .page-list { flex: 1 1 auto; overflow-y: auto; padding: 12px; background: var(--paper-deep); display: flex; flex-direction: column; gap: 8px; }
-.page-card { flex: 0 0 auto; border: 2px solid var(--ink); background: var(--paper); overflow: hidden; transition: border-color 0.1s; }
+/* content-visibility skips layout/paint for offscreen cards, so a 2,000-page list scrolls
+   as smoothly as a 20-page one (thumbnails are lazy via IntersectionObserver either way). */
+.page-card { flex: 0 0 auto; border: 2px solid var(--ink); background: var(--paper); overflow: hidden; transition: border-color 0.1s; content-visibility: auto; contain-intrinsic-size: auto 264px; }
 .page-card.is-citation { border-color: var(--rose-deep); }
 .page-card.is-cover    { border-color: var(--ochre); }
 /* TRACE BACK placeholder: dark grain field shows while the page render is pending */

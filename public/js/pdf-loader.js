@@ -18,6 +18,17 @@ let activeRenders = 0;
 const renderQueue = [];
 const rendering = new Set();
 
+// Thumbnails are sized for their DISPLAY box in the 200px pages panel (.page-thumb img is
+// capped at max-width:100% / max-height:220px), rendered once at devicePixelRatio sharpness —
+// never larger. Full quality is the page preview's job, not the thumbnail's.
+const THUMB_CSS_W = 180;
+const THUMB_CSS_H = 220;
+const THUMB_DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+// PDFs are parsed at most two at a time: each parse transiently needs several× file size in
+// memory, so parsing ten 200MB files in parallel would spike past what most tabs survive.
+const LOAD_CONCURRENCY = 2;
+
 let el = {};
 
 export function initLoader() {
@@ -139,20 +150,23 @@ async function handleFiles(fileList) {
     notify('docs-added');
 
     const failed = [];
-    await Promise.all(
-        docs.map(async (doc) => {
+    // Load at most LOAD_CONCURRENCY at once — see LOAD_CONCURRENCY on memory spikes.
+    let cursor = 0;
+    async function nextLoad() {
+        while (cursor < docs.length) {
+            const doc = docs[cursor++];
             try {
-                const buf = await doc.file.arrayBuffer();
-                doc.pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
-                doc.pageCount = doc.pdfDoc.numPages;
-                doc.thumbnails = new Array(doc.pageCount);
-                doc.coverPage = 0; // auto-select first page as cover
+                await loadDoc(doc);
             } catch (err) {
                 console.error('Failed to load PDF:', doc.fileName, err);
                 toast(`Failed to load "${doc.fileName}": ${err.message}`, 'error');
+                destroyDoc(doc);
                 failed.push(doc.id);
             }
-        })
+        }
+    }
+    await Promise.all(
+        Array.from({ length: Math.min(LOAD_CONCURRENCY, docs.length) }, nextLoad)
     );
 
     // Remove docs that failed to parse
@@ -178,6 +192,30 @@ async function handleFiles(fileList) {
     }
 }
 
+/**
+ * Parse one PDF in the pdf.js worker. The buffer goes in as `data`, which pdf.js TRANSFERS
+ * to its worker (detaching it here) — the main thread never keeps a second copy, and the
+ * worker frees it on destroy(). (blob: URLs were tried and don't work: pdf.js's fetch
+ * stream is http(s)-only, and its XHR fallback cannot fetch blob URLs in Chromium.)
+ */
+async function loadDoc(doc) {
+    doc.pdfDoc = await pdfjsLib.getDocument({ data: await doc.file.arrayBuffer() }).promise;
+    doc.pageCount = doc.pdfDoc.numPages;
+    doc.thumbnails = new Array(doc.pageCount);
+    doc.coverPage = 0; // auto-select first page as cover
+}
+
+/** Free every resource a doc holds: pdf.js worker buffers, the source blob URL, thumb URLs. */
+export function destroyDoc(doc) {
+    try { doc.pdfDoc?.destroy(); } catch { /* already destroyed */ }
+    doc.pdfDoc = null;
+    if (doc.srcUrl) { URL.revokeObjectURL(doc.srcUrl); doc.srcUrl = null; }
+    for (const url of doc.thumbnails || []) {
+        if (url) URL.revokeObjectURL(url);
+    }
+    doc.thumbnails = [];
+}
+
 // ---------------------------------------------------------------------------
 // On-demand thumbnails (active document)
 // ---------------------------------------------------------------------------
@@ -189,11 +227,14 @@ function resetThumbnailQueue() {
     activeRenders = 0;
 }
 
-function thumbScale() {
-    const n = getActiveDoc()?.pageCount || 0;
-    if (n > 500) return 0.18;
-    if (n > 200) return 0.22;
-    return 0.3;
+function thumbScale(page) {
+    // Fit the thumbnail's actual display box (THUMB_CSS_W × THUMB_CSS_H at device sharpness);
+    // independent of the page's native size, so huge pages cost no more than small ones.
+    const native = page.getViewport({ scale: 1 });
+    return Math.min(
+        (THUMB_CSS_W * THUMB_DPR) / native.width,
+        (THUMB_CSS_H * THUMB_DPR) / native.height
+    );
 }
 
 function requestThumb(page) {
@@ -222,19 +263,26 @@ async function renderThumb(page) {
     rendering.add(page);
     activeRenders++;
     const taskId = currentTaskId;
+    let url = null;
     try {
         const p = await doc.pdfDoc.getPage(page + 1);
-        const viewport = p.getViewport({ scale: thumbScale() });
+        const viewport = p.getViewport({ scale: thumbScale(p) });
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.floor(viewport.width));
         canvas.height = Math.max(1, Math.floor(viewport.height));
         await p.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        p.cleanup(); // release this page's intermediate render resources back to the worker
+        url = await new Promise((resolve, reject) =>
+            canvas.toBlob((b) => (b ? resolve(URL.createObjectURL(b)) : reject(new Error('toBlob failed'))), 'image/png')
+        );
         if (taskId !== currentTaskId) return; // tab was switched away
-        doc.thumbnails[page] = canvas.toDataURL('image/png');
+        doc.thumbnails[page] = url;
         fillThumb(page);
     } catch (err) {
         console.warn(`Thumbnail render failed for page ${page + 1}:`, err);
     } finally {
+        // Drop the URL if it was created but not stored (stale tab), and drop the canvas ref.
+        if (url && doc.thumbnails[page] !== url) URL.revokeObjectURL(url);
         rendering.delete(page);
         activeRenders--;
         pumpQueue();

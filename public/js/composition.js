@@ -11,10 +11,12 @@
 // All functions take their inputs as parameters — no shared-state import needed.
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
-// Hi-res cover render width. Sized generously so the cover is never upscaled at export:
-// side-by-side export draws the cover into a half of width = citationNativeWidth × 2, which is
-// ~1190px for A4 / ~1684px for A3 — 2000 covers those without quality loss.
+// Hi-res cover render width. COVER_CAP_PX covers preview and typical exports (side-by-side
+// export draws the cover into a half of width = citationNativeWidth × 2, ~1190px for A4).
+// getCoverHiRes(doc, minWidth) re-renders when an export needs more (capped at COVER_MAX_PX
+// so a huge source page can't allocate an absurd cover bitmap).
 const COVER_CAP_PX = 2000;
+const COVER_MAX_PX = 4096;
 
 export function pageNativeSize(page) {
     const vp = page.getViewport({ scale: 1 });
@@ -78,15 +80,22 @@ export async function renderPageToCanvas(page, cssWidth) {
     return canvas;
 }
 
-/** Render (or return cached) the given document's cover page at high resolution. */
-export async function getCoverHiRes(doc) {
+/**
+ * Render (or return cached) the given document's cover page at high resolution.
+ * @param {number} [minWidth] minimum output width the caller needs (e.g. export); re-renders
+ *                            when the cache is smaller, capped at COVER_MAX_PX.
+ */
+export async function getCoverHiRes(doc, minWidth = 0) {
     if (!doc || doc.coverPage === null) return null;
+    const target = Math.min(Math.max(COVER_CAP_PX, minWidth), COVER_MAX_PX);
     const cached = doc._coverHiRes;
-    if (cached && cached.page === doc.coverPage && cached.canvas) return cached;
+    if (cached && cached.page === doc.coverPage && cached.canvas && cached.canvas.width >= target) {
+        return cached;
+    }
 
     const page = await doc.pdfDoc.getPage(doc.coverPage + 1);
     const native = pageNativeSize(page);
-    const scale = COVER_CAP_PX / native.width;
+    const scale = target / native.width;
     const vp = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(vp.width));
