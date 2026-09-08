@@ -88,6 +88,16 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .rail-row.active .rail-thumb--all { background: var(--noir); color: var(--paper); border-color: var(--paper); }
 .rail-thumb--all svg { width: 70%; height: 70%; display: block; }
 .rail-info { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
+/* Per-doc remove (✕) — overlays the row's top-right, revealed on hover */
+.rail-remove {
+    position: absolute; top: 6px; right: 6px; width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; line-height: 1; border: 1px solid currentColor;
+    opacity: 0; transition: opacity 0.1s; cursor: pointer; user-select: none;
+}
+.rail-row:hover .rail-remove, .rail-remove:focus-visible { opacity: 0.65; }
+.rail-remove:hover { opacity: 1; background: var(--rose-deep); color: var(--paper); }
+@media (hover: none) { .rail-remove { opacity: 0.65; } }
 .rail-name {
     font-family: var(--f-display); font-size: 1.15rem; font-weight: 400;
     text-transform: uppercase; letter-spacing: 0.01em; line-height: 0.95;
@@ -213,6 +223,9 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .page-card { flex: 0 0 auto; border: 2px solid var(--ink); background: var(--paper); overflow: hidden; transition: border-color 0.1s; content-visibility: auto; contain-intrinsic-size: auto 264px; }
 .page-card.is-citation { border-color: var(--rose-deep); }
 .page-card.is-cover    { border-color: var(--ochre); }
+/* Brief highlight when navigated to from the combined view */
+.page-card.flash { outline: 3px solid var(--rose); animation: card-flash 0.65s ease 2; }
+@keyframes card-flash { 50% { outline-color: transparent; } }
 /* TRACE BACK placeholder: dark grain field shows while the page render is pending */
 .page-thumb { background: var(--ink) var(--grain); display: flex; align-items: center; justify-content: center; min-height: 90px; }
 .page-thumb img { max-width: 100%; max-height: 220px; display: block; }
@@ -249,6 +262,9 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 /* ---- Overview panel (All / combined): combined preview only; rail absorbs the doc grid ---- */
 .overview-panel { flex: 1 1 auto; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; background: var(--paper-deep); }
 .combined-preview-area { flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+/* Combined cards navigate to their workspace page */
+.combined-preview-area .composition-card { cursor: pointer; }
+.combined-preview-area .composition-card:hover .composition-label { color: var(--rose-deep); }
 .combined-doc-header { font-family: var(--f-body); font-size: 0.9rem; font-weight: 600; align-self: stretch; padding: 6px 0 8px; border-bottom: 2px solid var(--ink); }
 
 /* ---- Preview list ---- */

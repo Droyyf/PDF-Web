@@ -156,7 +156,12 @@ async function handleFiles(fileList) {
         while (cursor < docs.length) {
             const doc = docs[cursor++];
             try {
-                await loadDoc(doc);
+                await loadDoc(doc, (frac) => {
+                    // Live byte-progress on the loading rail row; re-rendered summaries take
+                    // over once the doc finishes (or fails).
+                    const row = document.querySelector(`.rail-row[data-tab="${doc.id}"] .rail-summary`);
+                    if (row) row.textContent = `${Math.round(frac * 100)}%`;
+                });
             } catch (err) {
                 console.error('Failed to load PDF:', doc.fileName, err);
                 toast(`Failed to load "${doc.fileName}": ${err.message}`, 'error');
@@ -197,9 +202,34 @@ async function handleFiles(fileList) {
  * to its worker (detaching it here) — the main thread never keeps a second copy, and the
  * worker frees it on destroy(). (blob: URLs were tried and don't work: pdf.js's fetch
  * stream is http(s)-only, and its XHR fallback cannot fetch blob URLs in Chromium.)
+ *
+ * pdf.js reports no parse progress for in-memory data, so the file is read as a stream into
+ * a preallocated buffer and onProgress(fraction) reports REAL byte progress for the read —
+ * the dominant cost for large local files. The parse phase stays under the row's
+ * indeterminate loading band.
  */
-async function loadDoc(doc) {
-    doc.pdfDoc = await pdfjsLib.getDocument({ data: await doc.file.arrayBuffer() }).promise;
+async function loadDoc(doc, onProgress) {
+    let buf;
+    if (doc.file.stream) {
+        buf = new Uint8Array(doc.file.size);
+        let loaded = 0;
+        for await (const chunk of doc.file.stream()) {
+            buf.set(chunk, loaded);
+            loaded += chunk.length;
+            onProgress?.(doc.file.size ? loaded / doc.file.size : 1);
+        }
+    } else {
+        buf = new Uint8Array(await doc.file.arrayBuffer());
+        onProgress?.(1);
+    }
+    const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+    // The doc may have been removed (✕) while this load was in flight — free what we just
+    // parsed instead of attaching it to a dead doc.
+    if (doc._destroyed) {
+        try { pdfDoc.destroy(); } catch { /* already gone */ }
+        return;
+    }
+    doc.pdfDoc = pdfDoc;
     doc.pageCount = doc.pdfDoc.numPages;
     doc.thumbnails = new Array(doc.pageCount);
     doc.coverPage = 0; // auto-select first page as cover
@@ -207,6 +237,7 @@ async function loadDoc(doc) {
 
 /** Free every resource a doc holds: pdf.js worker buffers, source + thumbnail blob URLs. */
 export function destroyDoc(doc) {
+    doc._destroyed = true;
     try { doc.pdfDoc?.destroy(); } catch { /* already destroyed */ }
     doc.pdfDoc = null;
     if (doc.srcUrl) { URL.revokeObjectURL(doc.srcUrl); doc.srcUrl = null; }
@@ -325,9 +356,9 @@ export function buildPageList() {
 
         const citBtn = document.createElement('button');
         citBtn.className = 'toggle citation-toggle';
-        citBtn.title = 'Toggle citation';
+        citBtn.title = 'Toggle citation — Shift-click to select a range';
         citBtn.textContent = '○';
-        citBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleCitation(i); });
+        citBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleCitation(i, e.shiftKey); });
 
         const covBtn = document.createElement('button');
         covBtn.className = 'toggle cover-toggle';
@@ -391,12 +422,26 @@ function refreshAllCards() {
 // Selection toggles
 // ---------------------------------------------------------------------------
 
-function toggleCitation(page) {
+function toggleCitation(page, extend = false) {
     const doc = getActiveDoc();
     if (!doc) return;
-    if (doc.selectedCitations.has(page)) doc.selectedCitations.delete(page);
-    else doc.selectedCitations.add(page);
-    refreshCard(page);
+    // Shift-click fills the range from the last-clicked citation (inclusive) — the quick
+    // path for citing a run of pages. It only ever adds; plain click still toggles.
+    if (extend && doc._lastCitation !== undefined && doc._lastCitation !== page) {
+        const a = Math.min(doc._lastCitation, page);
+        const b = Math.max(doc._lastCitation, page);
+        for (let i = a; i <= b; i++) {
+            doc.selectedCitations.add(i);
+            refreshCard(i);
+        }
+    } else if (doc.selectedCitations.has(page)) {
+        doc.selectedCitations.delete(page);
+        refreshCard(page);
+    } else {
+        doc.selectedCitations.add(page);
+        refreshCard(page);
+    }
+    doc._lastCitation = page;
     updateSelectionSummary();
     notify('selection');
 }

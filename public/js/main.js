@@ -6,7 +6,8 @@ import { initExport } from './export.js';
 import { initDocumentsView } from './documents-view.js';
 import { initFrameUpload } from './frame-upload.js';
 import { getActiveDoc, subscribe, notify } from './state.js';
-import { framesForMode, frameCompatible, preloadFrames } from './frames.js';
+import { framesForMode, frameCompatible, preloadFrames, getFrame } from './frames.js';
+import { toast } from './pdf-loader.js';
 
 function syncModeSwitch() {
     const doc = getActiveDoc();
@@ -26,7 +27,10 @@ function initModeSwitch() {
         if (!btn || !doc || btn.dataset.mode === doc.mode) return;
         doc.mode = btn.dataset.mode;
         // A frame only valid for the old mode (e.g. Book in side-by-side) must drop before render.
-        if (!frameCompatible(doc.frame, doc.mode)) doc.frame = 'none';
+        if (!frameCompatible(doc.frame, doc.mode)) {
+            toast(`"${getFrame(doc.frame).name}" frame isn't available in ${doc.mode === 'top' ? 'Top' : 'Side×Side'} mode — reset to None`, 'info');
+            doc.frame = 'none';
+        }
         modeSwitch
             .querySelectorAll('.mode-btn')
             .forEach((b) => b.classList.toggle('active', b.dataset.mode === doc.mode));

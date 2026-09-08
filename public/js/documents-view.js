@@ -3,9 +3,10 @@
 // tab bar and the old All-Documents shape-poster grid. A single pub/sub subscriber drives
 // all header + rail + main-area panel updates.
 
-import { state, subscribe, notify } from './state.js';
+import { state, subscribe, notify, getDoc } from './state.js';
 import { getCoverHiRes } from './composition.js';
 import { buildSideBySideCard, buildTopCard } from './preview.js';
+import { destroyDoc, toast } from './pdf-loader.js';
 
 let el = {};
 let combinedToken = 0; // cancels stale combined-preview renders
@@ -35,9 +36,21 @@ export function initDocumentsView() {
 
     // Per-doc rail rows (event-delegated)
     el.railDocs.addEventListener('click', (e) => {
+        const remove = e.target.closest('.rail-remove');
+        if (remove) {
+            removeDoc(remove.closest('[data-tab]').dataset.tab);
+            return;
+        }
         const row = e.target.closest('[data-tab]');
         if (!row || row.dataset.tab === state.activeTab) return;
         switchTab(row.dataset.tab);
+    });
+
+    // Combined-view cards navigate: click a composed card → that page in its workspace
+    el.combinedPreview.addEventListener('click', (e) => {
+        const card = e.target.closest('.composition-card');
+        if (!card?.dataset.docId) return;
+        jumpToPage(card.dataset.docId, Number(card.dataset.citation));
     });
 
     el.packagingSelect?.addEventListener('change', (e) => {
@@ -110,6 +123,40 @@ export function switchTab(tabId) {
     showCurrentView();
 }
 
+/**
+ * Remove one document: free its resources, drop it from state, and land somewhere sane
+ * (the All tab). When the last doc goes, the app returns to the empty/upload state.
+ */
+function removeDoc(id) {
+    const doc = getDoc(id);
+    if (!doc) return;
+    destroyDoc(doc);
+    state.documents.splice(state.documents.findIndex((d) => d.id === id), 1);
+    toast(`Removed "${doc.baseName}"`, 'info');
+    if (state.activeTab !== id) {
+        notify('docs-added'); // rail + header re-render; current view untouched
+        return;
+    }
+    state.activeTab = 'all';
+    if (state.documents.length === 0) notify('cleared');
+    else notify('tab');
+    showCurrentView();
+}
+
+/** Navigate from a combined-view card to that page inside its document's workspace. */
+function jumpToPage(docId, citationIndex) {
+    if (!getDoc(docId)) return;
+    switchTab(docId);
+    // The tab switch rebuilds the page list synchronously; scroll after layout settles.
+    requestAnimationFrame(() => {
+        const card = document.querySelector(`.page-card[data-page="${citationIndex}"]`);
+        if (!card) return;
+        card.scrollIntoView({ block: 'center' });
+        card.classList.add('flash');
+        setTimeout(() => card.classList.remove('flash'), 1300);
+    });
+}
+
 /** Show the correct content panel based on current state. */
 export function showCurrentView() {
     const hasDocs = state.documents.length > 0;
@@ -180,6 +227,15 @@ function buildRailRow(doc, idx) {
     if (state.activeTab === doc.id) row.classList.add('active');
     if (doc.selectedCitations.size > 0) row.classList.add('has-cit');
     if (!doc.pdfDoc) row.classList.add('rail-row--loading');
+
+    const remove = document.createElement('span');
+    remove.className = 'rail-remove';
+    remove.role = 'button';
+    remove.tabIndex = -1;
+    remove.title = 'Remove document';
+    remove.setAttribute('aria-label', `Remove ${doc.baseName}`);
+    remove.textContent = '✕';
+    row.appendChild(remove);
 
     const thumb = document.createElement('span');
     thumb.className = 'rail-thumb';
@@ -315,6 +371,8 @@ async function renderCombinedPreview() {
                     : await buildTopCard(doc, page, cover, ci, containerW, false);
             if (token !== combinedToken) return;
             frag.appendChild(card);
+            card.dataset.docId = doc.id; // combined-view cards navigate to their workspace
+            card.title = 'Open this page';
         }
     }
 
