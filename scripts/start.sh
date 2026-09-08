@@ -30,9 +30,10 @@ if command -v lsof >/dev/null 2>&1; then
     fi
 fi
 
-# 2. Kill any stray instances of this project's server / watcher by name.
-pkill -f "node .*server\.js"    2>/dev/null && echo "  • stopped a stray 'node server.js'" || true
-pkill -f "nodemon .*server\.js" 2>/dev/null && echo "  • stopped a stray 'nodemon server.js'" || true
+# 2. Kill any stray instances of THIS project's server / watcher (matched by full path so
+#    other projects' server.js processes are never touched).
+pkill -f "node .*${ROOT}/server\.js"    2>/dev/null && echo "  • stopped a stray 'node server.js'" || true
+pkill -f "nodemon .*${ROOT}/server\.js" 2>/dev/null && echo "  • stopped a stray 'nodemon server.js'" || true
 
 sleep 0.5  # give the OS a moment to release the port
 

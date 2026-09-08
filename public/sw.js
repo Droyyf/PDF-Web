@@ -8,7 +8,7 @@
 //
 // To force a fresh shell after a release, bump CACHE_NAME.
 
-const CACHE_NAME = 'pdfw-v1';
+const CACHE_NAME = 'pdfw-v2';
 
 const PRECACHE = [
     '/',
@@ -37,7 +37,20 @@ const PRECACHE = [
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
+        caches.open(CACHE_NAME)
+            .then((cache) =>
+                // Cache each asset independently: cache.addAll is all-or-nothing, so a
+                // single 404 (e.g. a removed module still listed above) would fail the
+                // whole install and the SW would never update again.
+                Promise.allSettled(
+                    PRECACHE.map((url) =>
+                        fetch(url).then((res) => {
+                            if (res.ok) return cache.put(url, res);
+                        })
+                    )
+                )
+            )
+            .then(() => self.skipWaiting())
     );
 });
 
