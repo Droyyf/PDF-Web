@@ -98,6 +98,67 @@ components:
 
 # Design System: PDF Composer
 
+## 0. DESIGN LAW — locked 2026-09-09
+
+The user has ratified the current warm-brutalist identity. It is the **permanent design
+architecture** of this app. Every future UI change — new screens, components, polish —
+keeps this identity *and* passes the quality gates below (distilled from Apple's HIG via
+the apple-design skill, translated to this web app). Identity decides **what it looks
+like**; the gates decide **whether it ships**.
+
+### Frozen identity (change only with the user's explicit approval)
+
+- Warm brutalism: exposed structure, heavy type, stark contrast, paper-and-ink warmth.
+  No gradients, no glass, no rounded softness, no decorative gloss (PRODUCT.md
+  anti-references remain binding).
+- Palette, type ramp, spacing, texture: exactly as specified in §2–§4. Three typefaces
+  only — Anton (display), Space Grotesk (UI), IBM Plex Mono (labels/meta). No additions.
+- Semantic tokens only: `--ink` = content, `--noir` = chrome, `--rose` = selection/accent,
+  `--ochre` = cover, `--paper/--paper-deep` = surfaces. A token never gains a second
+  meaning; new colors require a new named token and a reason.
+- The document is the hero; chrome stays quiet and raw. Separation is done with rules,
+  weight, and negative space — never shadows-as-decoration.
+- Dark mode is out of scope: the paper identity is light-native by design.
+
+### Quality gates (every UI change must pass — cite the guideline when reviewing)
+
+1. **Contrast** — ≥ 4.5:1 for body text; ≥ 3:1 for ≥ 18px or bold text and for UI
+   boundaries that carry meaning. *(Accessibility — Vision)*
+2. **Targets** — interactive elements ≥ 28px with breathing room (≥ 44px if a touch
+   surface is in scope). *(Accessibility — Mobility)*
+3. **Never color alone** — selection, state, and identity always carry a second cue:
+   glyph, shape, label, or border. *(Accessibility / Inclusive color)*
+4. **Keyboard & focus** — everything operable by keyboard; visible focus
+   (`:focus-visible` with the rose ring); logical tab order. *(Accessibility — Mobility)*
+5. **Motion** — honor `prefers-reduced-motion`; no essential information by motion alone.
+   *(Accessibility — Cognitive)*
+6. **Typography discipline** — hierarchy via the existing ramp (weight/size/case);
+   body in sentence case; uppercase reserved for display + mono labels; nothing below
+   12px for meaningful text. *(Typography — legibility/hierarchy)*
+7. **Layout honesty** — align to the exposed grid; group with rules and space; controls
+   keep ≥ 24px clear of each other; dialogs keep essential actions visible without
+   scroll where possible. *(Layout — visual hierarchy)*
+8. **Interaction completeness** — every action has feedback (state change or toast);
+   destructive acts are explicit and messaged; loading is inline, never a takeover.
+   *(Interaction design)*
+
+### Known gaps to reconcile (polish backlog, in this order)
+
+1. `.rail-remove` is 18px and keyboard-inaccessible (`tabindex="-1"`) — bring to ≥ 28px
+   + keyboard operable. (Gate 2, 4)
+2. No `prefers-reduced-motion` handling — gate `rail-load-slide`, toasts, `card-flash`,
+   cover drag. (Gate 5)
+3. Cover toggle ☆/○ buttons are 28px — fine for desktop, revisit if touch ships. (Gate 2)
+
+### Review protocol
+
+UI changes run through the apple-design skill lenses in order — accessibility → platform
+convention → visual design → interaction → content — against the frozen identity, with
+guideline citations in the review output. When a HIG principle conflicts with brutalist
+identity (e.g., "use system materials"), identity wins on **look**, HIG wins on
+**behavior and legibility**.
+
+
 ## 1. Overview
 
 **Creative North Star: "The Composing Stick, printed as a poster."**

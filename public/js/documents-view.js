@@ -231,10 +231,17 @@ function buildRailRow(doc, idx) {
     const remove = document.createElement('span');
     remove.className = 'rail-remove';
     remove.role = 'button';
-    remove.tabIndex = -1;
+    remove.tabIndex = 0; // keyboard-reachable (design law gate 4)
     remove.title = 'Remove document';
     remove.setAttribute('aria-label', `Remove ${doc.baseName}`);
     remove.textContent = '✕';
+    remove.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            removeDoc(doc.id);
+        }
+    });
     row.appendChild(remove);
 
     const thumb = document.createElement('span');

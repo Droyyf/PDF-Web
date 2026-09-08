@@ -90,14 +90,25 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .rail-info { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
 /* Per-doc remove (✕) — overlays the row's top-right, revealed on hover */
 .rail-remove {
-    position: absolute; top: 6px; right: 6px; width: 18px; height: 18px;
+    position: absolute; top: 4px; right: 4px; width: 28px; height: 28px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 10px; line-height: 1; border: 1px solid currentColor;
-    opacity: 0; transition: opacity 0.1s; cursor: pointer; user-select: none;
+    font-size: 12px; line-height: 1; border: 1px solid currentColor;
+    background: var(--paper); opacity: 0; transition: opacity 0.1s; cursor: pointer; user-select: none;
 }
-.rail-row:hover .rail-remove, .rail-remove:focus-visible { opacity: 0.65; }
+.rail-row:hover .rail-remove, .rail-remove:focus-visible { opacity: 0.85; }
 .rail-remove:hover { opacity: 1; background: var(--rose-deep); color: var(--paper); }
+.rail-remove:focus-visible { outline: 2px solid var(--rose-deep); outline-offset: -2px; }
 @media (hover: none) { .rail-remove { opacity: 0.65; } }
+
+/* Design law gate 5: reduced motion — kill decoration animation, keep state changes instant */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    .rail-row--loading::after { animation: none; background: var(--rose); }
+}
 .rail-name {
     font-family: var(--f-display); font-size: 1.15rem; font-weight: 400;
     text-transform: uppercase; letter-spacing: 0.01em; line-height: 0.95;
