@@ -196,51 +196,48 @@ button { font: inherit; }
 .batch-toggle { display: inline-flex; align-items: center; gap: 5px; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; user-select: none; }
 .batch-toggle input { cursor: pointer; margin: 0; }
 
-/* ---- Upload card — inline noir poster inside the combined view (single-page shell) ---- */
+/* ---- Upload card — a composed empty state in the same grammar as every panel:
+        paper surface, 2px rules, mono header row, standard primary button. ---- */
 .upload-card {
-    text-align: center; position: relative; z-index: 1; overflow: hidden;
-    align-self: center; margin: 9vh 0 24px;
-    background: var(--noir) var(--grain);
-    border: 2px solid var(--noir); color: var(--paper);
-    padding: 36px 64px 30px;
-    min-width: min(460px, 100%);
+    text-align: center; position: relative;
+    align-self: center; width: min(560px, 100%); margin: 9vh 0 24px;
+    background: var(--paper);
+    border: var(--rule); color: var(--ink);
+    padding: 0 0 30px;
     transition: border-color 0.2s var(--ease-out), transform 0.25s var(--ease-press), box-shadow 0.25s var(--ease-press);
 }
 .upload-card:hover { transform: translate(-2px, -2px); box-shadow: var(--lift-lg); }
-/* corner registration ticks */
+/* corner registration ticks — the card's one kept TRACE-BACK signature */
 .upload-card::before,
 .upload-card::after {
-    content: ''; position: absolute; width: 16px; height: 16px;
-    border-style: solid; border-color: oklch(52% 0.02 8);
+    content: ''; position: absolute; width: 14px; height: 14px;
+    border-style: solid; border-color: var(--ink);
 }
 .upload-card::before { top: -7px; left: -7px; border-width: 2px 0 0 2px; }
 .upload-card::after  { bottom: -7px; right: -7px; border-width: 0 2px 2px 0; }
-.upload-card.drag-over { border-color: var(--rose); }
-.upload-icon { display: none; }
-/* header / footer furniture rows */
-.upload-card-header,
-.upload-card-footer {
+.upload-card.drag-over { border-style: dashed; border-color: var(--rose-deep); }
+/* panel-style header row — identical anatomy to PAGES / LIVE PREVIEW headers */
+.upload-card-header {
     display: flex; align-items: center; justify-content: space-between;
-    font-family: var(--f-mono); font-size: 0.7rem; font-weight: 500;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: oklch(58% 0.015 8);
-}
-.upload-card-header { margin-bottom: 20px; }
-.upload-card-footer { margin-top: 20px; gap: 10px; }
-.upload-globe { width: 26px; height: 26px; color: oklch(58% 0.015 8); flex: 0 0 auto; }
-.upload-card h2 {
-    font-family: var(--f-display); font-size: clamp(2.8rem, 9vw, 5.5rem); line-height: 0.88;
-    text-transform: uppercase; letter-spacing: 0.005em; font-weight: 400;
-    color: var(--rose); margin: 0 0 20px;
-}
-.upload-card > p {
     font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500;
-    letter-spacing: 0.06em; text-transform: uppercase;
-    color: oklch(50% 0.015 8); margin: 0 0 6px;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--ink-soft);
+    padding: 8px 14px; border-bottom: var(--rule); margin-bottom: 26px;
+    background: var(--paper-deep);
 }
-.upload-card .btn-primary { margin-top: 20px; background: var(--rose); border-color: var(--rose); color: var(--noir); }
+.upload-card-body { padding: 0 48px; }
+.upload-card h2 {
+    font-family: var(--f-display); font-size: clamp(1.7rem, 3.2vw, 2.4rem); line-height: 0.95;
+    text-transform: uppercase; letter-spacing: 0.01em; font-weight: 400;
+    color: var(--ink); margin: 0 0 12px;
+}
+.upload-lede {
+    font-family: var(--f-body); font-size: 0.9rem; line-height: 1.5;
+    color: var(--ink-soft); margin: 0 auto 20px; max-width: 34ch;
+}
+.upload-card .btn-primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .upload-card .btn-primary:hover { background: var(--rose-deep); border-color: var(--rose-deep); color: var(--paper); }
-.upload-hint { font-size: 0.7rem !important; color: oklch(58% 0.015 8) !important; margin-top: 8px !important; }
+.upload-hint { font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); margin: 12px 0 0; }
 
 /* ---- Workspace: thin pages strip + dominant preview ---- */
 .workspace { flex: 1 1 auto; display: grid; grid-template-columns: 200px 1fr; min-height: 0; min-width: 0; }
