@@ -13,7 +13,10 @@
 // composition's smaller dimension). The 'book' frame is drawn procedurally (see composeBook), so
 // it needs no slice/window config.
 
+import { detectWindows } from './frame-detect.js';
+
 const FRAME_DIR = 'frames/';
+const ART_SCAN = 256; // downsample size for the transparent-margin scan
 
 export const FRAMES = [
     { id: 'none', name: 'None', type: 'none', modes: ['top', 'sidebyside'] },
@@ -97,7 +100,7 @@ export function userFrameList() {
 // Image cache (canvas paths need a loaded HTMLImageElement; CSS loads its own copy)
 // ---------------------------------------------------------------------------
 
-const imgCache = new Map(); // id -> Promise<HTMLImageElement>
+const imgCache = new Map(); // id -> Promise<HTMLImageElement|HTMLCanvasElement>
 
 function loadImage(src) {
     return new Promise((resolve, reject) => {
@@ -108,16 +111,79 @@ function loadImage(src) {
     });
 }
 
+/**
+ * Trim transparent padding from a sliced-frame asset and re-derive its windows from the
+ * trimmed art. Real frame PNGs ship with dead margins (Celtic had 17.5% of its width on each
+ * side), which used to render as white space beyond the frame in every composition. Runs once
+ * per frame; the trimmed canvas replaces the image everywhere (preview CSS border-image via a
+ * blob URL, and all canvas/export paths), so any page aspect now fits the art exactly.
+ */
+async function normalizeFrame(frame, img) {
+    if (frame.type !== 'sliced' || frame._normalized) return img;
+    frame._normalized = true;
+
+    const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+    const s = Math.min(1, ART_SCAN / Math.max(W, H));
+    const w = Math.max(1, Math.round(W * s)), h = Math.max(1, Math.round(H * s));
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+
+    let mnx = w, mny = h, mxx = -1, mxy = -1;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            if (d[(y * w + x) * 4 + 3] > 16) {
+                if (x < mnx) mnx = x; if (x > mxx) mxx = x;
+                if (y < mny) mny = y; if (y > mxy) mxy = y;
+            }
+        }
+    }
+    if (mxx < 0) return img; // fully transparent — nothing sensible to trim
+    const padL = mnx / w, padT = mny / h, padR = (w - 1 - mxx) / w, padB = (h - 1 - mxy) / h;
+    if (Math.max(padL, padT, padR, padB) < 0.005) return img; // art already fills the image
+
+    const sx = Math.floor(mnx * W / w), sy = Math.floor(mny * H / h);
+    const sw = Math.ceil((mxx - mnx + 1) * W / w), sh = Math.ceil((mxy - mny + 1) * H / h);
+    const cropped = document.createElement('canvas');
+    cropped.width = sw; cropped.height = sh;
+    cropped.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+    // Re-derive the window rects on the trimmed art (exact); fall back to remapping the
+    // registry rects if the scan is inconclusive for this asset.
+    try {
+        frame.windows = detectWindows(cropped, frame.windows.length);
+    } catch (err) {
+        console.warn(`Frame "${frame.id}": window re-detection failed, remapping manually:`, err);
+        frame.windows = frame.windows.map((win) => ({
+            x: (win.x * W - sx) / sw,
+            y: (win.y * H - sy) / sh,
+            w: (win.w * W) / sw,
+            h: (win.h * H) / sh,
+        }));
+    }
+
+    // Swap the asset so CSS border-image consumers (applySlicedBorderCSS) draw trimmed art too.
+    const blob = await new Promise((res) => cropped.toBlob(res, 'image/png'));
+    if (blob) frame.src = URL.createObjectURL(blob);
+    return cropped;
+}
+
+async function loadFrameAsset(frame) {
+    return normalizeFrame(frame, await loadImage(frame.src));
+}
+
 /** Warm the cache so export/book rendering never waits on a cold load. */
 export function preloadFrames() {
     for (const f of FRAMES) {
-        if (f.src && !imgCache.has(f.id)) imgCache.set(f.id, loadImage(f.src));
+        if (f.src && !imgCache.has(f.id)) imgCache.set(f.id, loadFrameAsset(f));
     }
 }
 
 export function frameImage(frame) {
     if (!frame.src) return Promise.resolve(null);
-    if (!imgCache.has(frame.id)) imgCache.set(frame.id, loadImage(frame.src));
+    if (!imgCache.has(frame.id)) imgCache.set(frame.id, loadFrameAsset(frame));
     return imgCache.get(frame.id);
 }
 
@@ -353,6 +419,10 @@ export async function composeSliced(frame, windowCanvases, targetW) {
     out.width = W;
     out.height = H;
     const ctx = out.getContext('2d');
+    // Opaque white underlay: frame art edges are often anti-aliased (semi-transparent), and
+    // an exported composition is a document — it must never carry a translucent rim.
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
 
     for (const c of colOut) {
         for (const r of rowOut) {
