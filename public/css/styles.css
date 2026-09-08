@@ -148,23 +148,23 @@ button { font: inherit; }
     word-break: break-word;
 }
 .rail-summary {
-    font-family: var(--f-mono); font-size: 0.62rem; font-weight: 500;
+    font-family: var(--f-mono); font-size: 0.7rem; font-weight: 500;
     letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-soft);
 }
 .rail-row.active .rail-summary { color: oklch(74% 0.014 62); }
 
-/* Inline loading badge: indeterminate progress band along the row's bottom edge */
+/* Inline loader: indeterminate band sweeping along the row's bottom edge — steady speed is
+   the one justified linear motion, but it runs on transform (no repaints) */
 .rail-row--loading .rail-summary { color: var(--ink-soft); font-style: italic; }
 .rail-row--loading::after {
-    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
-    background: linear-gradient(90deg, transparent 0%, var(--rose) 50%, transparent 100%);
-    background-size: 40% 100%; background-repeat: no-repeat;
+    content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 2px;
+    background: var(--rose);
     animation: rail-load-slide 1.2s linear infinite;
 }
-.rail-row.active.rail-row--loading::after { background: linear-gradient(90deg, transparent 0%, var(--rose-light) 50%, transparent 100%); background-size: 40% 100%; background-repeat: no-repeat; }
+.rail-row.active.rail-row--loading::after { background: var(--rose-light); }
 @keyframes rail-load-slide {
-    0%   { background-position: -40% 0; }
-    100% { background-position: 140% 0; }
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(350%); }
 }
 
 /* ---- Buttons ---- */
@@ -196,23 +196,14 @@ button { font: inherit; }
 .batch-toggle { display: inline-flex; align-items: center; gap: 5px; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; user-select: none; }
 .batch-toggle input { cursor: pointer; margin: 0; }
 
-/* ---- Empty state (noir poster) — fills the main area when no docs ---- */
-.empty-state {
-    flex: 1 1 auto; display: flex; align-items: center; justify-content: center;
-    background: var(--noir); position: relative; overflow: hidden;
-}
-/* riso grain overlay — static, screen blend, noir surfaces only */
-.empty-state::before {
-    content: ''; position: absolute; inset: -100px; pointer-events: none; z-index: 0;
-    opacity: 0.13; mix-blend-mode: screen;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-size: 300px 300px;
-}
+/* ---- Upload card — inline noir poster inside the combined view (single-page shell) ---- */
 .upload-card {
-    text-align: center; background: transparent; position: relative; z-index: 1;
-    border: 2px solid oklch(52% 0.02 8);
-    padding: 32px 56px 28px;
-    min-width: 420px;
+    text-align: center; position: relative; z-index: 1; overflow: hidden;
+    align-self: center; margin: 9vh 0 24px;
+    background: var(--noir) var(--grain);
+    border: 2px solid var(--noir); color: var(--paper);
+    padding: 36px 64px 30px;
+    min-width: min(460px, 100%);
     transition: border-color 0.2s var(--ease-out), transform 0.25s var(--ease-press), box-shadow 0.25s var(--ease-press);
 }
 .upload-card:hover { transform: translate(-2px, -2px); box-shadow: var(--lift-lg); }
@@ -224,20 +215,19 @@ button { font: inherit; }
 }
 .upload-card::before { top: -7px; left: -7px; border-width: 2px 0 0 2px; }
 .upload-card::after  { bottom: -7px; right: -7px; border-width: 0 2px 2px 0; }
-.empty-state .upload-card.drag-over,
-.empty-state.drag-over .upload-card { border-color: var(--rose); }
+.upload-card.drag-over { border-color: var(--rose); }
 .upload-icon { display: none; }
 /* header / footer furniture rows */
 .upload-card-header,
 .upload-card-footer {
     display: flex; align-items: center; justify-content: space-between;
-    font-family: var(--f-mono); font-size: 0.65rem; font-weight: 500;
+    font-family: var(--f-mono); font-size: 0.7rem; font-weight: 500;
     letter-spacing: 0.08em; text-transform: uppercase;
-    color: oklch(36% 0.015 8);
+    color: oklch(58% 0.015 8);
 }
 .upload-card-header { margin-bottom: 20px; }
 .upload-card-footer { margin-top: 20px; gap: 10px; }
-.upload-globe { width: 26px; height: 26px; color: oklch(36% 0.015 8); flex: 0 0 auto; }
+.upload-globe { width: 26px; height: 26px; color: oklch(58% 0.015 8); flex: 0 0 auto; }
 .upload-card h2 {
     font-family: var(--f-display); font-size: clamp(2.8rem, 9vw, 5.5rem); line-height: 0.88;
     text-transform: uppercase; letter-spacing: 0.005em; font-weight: 400;
@@ -250,7 +240,7 @@ button { font: inherit; }
 }
 .upload-card .btn-primary { margin-top: 20px; background: var(--rose); border-color: var(--rose); color: var(--noir); }
 .upload-card .btn-primary:hover { background: var(--rose-deep); border-color: var(--rose-deep); color: var(--paper); }
-.upload-hint { font-size: 0.65rem !important; color: oklch(38% 0.012 8) !important; margin-top: 8px !important; }
+.upload-hint { font-size: 0.7rem !important; color: oklch(58% 0.015 8) !important; margin-top: 8px !important; }
 
 /* ---- Workspace: thin pages strip + dominant preview ---- */
 .workspace { flex: 1 1 auto; display: grid; grid-template-columns: 200px 1fr; min-height: 0; min-width: 0; }
@@ -263,7 +253,13 @@ button { font: inherit; }
 }
 .panel-title { font-family: var(--f-body); font-size: 1rem; font-weight: 600; margin: 0; }
 .selection-summary { display: flex; gap: 8px; }
-.sel-pill { font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; background: var(--paper-deep); border: var(--rule); padding: 2px 8px; }
+.sel-pill { display: inline-flex; align-items: center; gap: 5px; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; background: var(--paper-deep); border: var(--rule); padding: 2px 8px; }
+.sel-pill svg { width: 11px; height: 11px; display: block; }
+
+/* Inline SVG icon sizing inside controls */
+.toggle svg { width: 14px; height: 14px; display: block; }
+.rail-remove svg { width: 12px; height: 12px; display: block; }
+.icon-btn svg { width: 15px; height: 15px; display: block; }
 
 /* ---- Page list ---- */
 .page-list { flex: 1 1 auto; overflow-y: auto; padding: 12px; background: var(--paper-deep); display: flex; flex-direction: column; gap: 8px; }
@@ -323,7 +319,7 @@ button { font: inherit; }
 .mode-btn.active { background: var(--ink); color: var(--paper); }
 .mode-btn:active { background: var(--paper-deep); }
 .preview-actions { display: flex; gap: 8px; align-items: center; }
-.cover-hint { font-family: var(--f-mono); font-size: 0.62rem; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ochre); border: 1px solid var(--ochre); padding: 3px 8px; white-space: nowrap; cursor: help; }
+.cover-hint { font-family: var(--f-mono); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: oklch(52% 0.12 74); border: 1px solid var(--ochre); padding: 3px 8px; white-space: nowrap; cursor: help; }
 .frame-label { display: inline-flex; align-items: center; gap: 6px; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
 
 /* ---- Overview panel (All / combined): combined preview only; rail absorbs the doc grid ---- */

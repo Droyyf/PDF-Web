@@ -4,6 +4,7 @@
 // and rebuilds the page list for the new active doc.
 
 import { state, notify, subscribe, getActiveDoc, addDocuments, resetAll } from './state.js';
+import { ICONS } from './icons.js';
 
 const pdfjsLib = window.pdfjsLib;
 // pdf.js needs to know where to find its Web Worker. Vendored alongside the main script.
@@ -357,13 +358,13 @@ export function buildPageList() {
         const citBtn = document.createElement('button');
         citBtn.className = 'toggle citation-toggle';
         citBtn.title = 'Toggle citation — Shift-click to select a range';
-        citBtn.textContent = '○';
+        citBtn.innerHTML = ICONS.circle;
         citBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleCitation(i, e.shiftKey); });
 
         const covBtn = document.createElement('button');
         covBtn.className = 'toggle cover-toggle';
         covBtn.title = 'Set as cover';
-        covBtn.textContent = '☆';
+        covBtn.innerHTML = ICONS.star;
         covBtn.addEventListener('click', (e) => { e.stopPropagation(); setCover(i); });
 
         toggles.appendChild(citBtn);
@@ -408,8 +409,8 @@ function refreshCard(page) {
     const isCover = doc.coverPage === page;
     card.classList.toggle('is-citation', isCitation);
     card.classList.toggle('is-cover', isCover);
-    card.querySelector('.citation-toggle').textContent = isCitation ? '✓' : '○';
-    card.querySelector('.cover-toggle').textContent = isCover ? '★' : '☆';
+    card.querySelector('.citation-toggle').innerHTML = isCitation ? ICONS.check : ICONS.circle;
+    card.querySelector('.cover-toggle').innerHTML = isCover ? ICONS.starFilled : ICONS.star;
 }
 
 function refreshAllCards() {

@@ -7,6 +7,7 @@ import { state, subscribe, notify, getDoc } from './state.js';
 import { getCoverHiRes } from './composition.js';
 import { buildSideBySideCard, buildTopCard } from './preview.js';
 import { destroyDoc, toast } from './pdf-loader.js';
+import { ICONS } from './icons.js';
 
 let el = {};
 let combinedToken = 0; // cancels stale combined-preview renders
@@ -19,8 +20,8 @@ export function initDocumentsView() {
         railDocs: document.getElementById('railDocs'),
         overviewPanel: document.getElementById('overviewPanel'),
         combinedPreview: document.getElementById('combinedPreview'),
+        uploadCard: document.getElementById('dropZone'),
         workspace: document.getElementById('workspace'),
-        emptyState: document.getElementById('emptyState'),
         exportBtn: document.getElementById('exportBtn'),
         exportFormat: document.getElementById('exportFormat'),
         packagingSelect: document.getElementById('packagingSelect'),
@@ -52,6 +53,14 @@ export function initDocumentsView() {
         if (!card?.dataset.docId) return;
         jumpToPage(card.dataset.docId, Number(card.dataset.citation));
     });
+    // …and the same by keyboard (Enter/Space) — the cards are real controls, not decoration
+    el.combinedPreview.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const card = e.target.closest('.composition-card');
+        if (!card?.dataset.docId) return;
+        e.preventDefault();
+        jumpToPage(card.dataset.docId, Number(card.dataset.citation));
+    });
 
     el.packagingSelect?.addEventListener('change', (e) => {
         state.packaging = e.target.value;
@@ -75,9 +84,9 @@ export function initDocumentsView() {
     subscribe((reason) => {
         const hasDocs = state.documents.length > 0;
 
-        // Header controls visibility
+        // Header controls. "+ Add PDFs" and Help are permanent (single-page shell); the
+        // export cluster only exists once there is something to export.
         el.docCount?.classList.toggle('hidden', !hasDocs);
-        el.addPdfBtn?.classList.toggle('hidden', !hasDocs);
         el.packagingSelect?.classList.toggle('hidden', !hasDocs);
         el.exportFormat?.classList.toggle('hidden', !hasDocs);
         el.exportBtn?.classList.toggle('hidden', !hasDocs);
@@ -86,13 +95,16 @@ export function initDocumentsView() {
             el.docCount.textContent = `${state.documents.length} doc${state.documents.length === 1 ? '' : 's'}`;
         }
 
-        // Rail visibility + content. Re-render on anything that changes a row's display.
-        el.appRail.classList.toggle('hidden', !hasDocs);
+        // Rail is part of the permanent shell; its per-doc rows re-render on changes.
         if (
             hasDocs &&
             ['loaded', 'docs-added', 'tab', 'cleared', 'selection', 'cover', 'mode', 'frame'].includes(reason)
         ) {
             renderRail();
+        } else if (!hasDocs) {
+            el.railAllSummary.textContent = allSummary();
+            el.railAllRow.classList.toggle('active', state.activeTab === 'all');
+            el.railDocs.replaceChildren();
         }
 
         // Export button enabled state (any doc has citations)
@@ -100,9 +112,13 @@ export function initDocumentsView() {
             el.exportBtn.disabled = !state.documents.some((d) => d.selectedCitations.size > 0);
         }
 
-        // Main area panel visibility after loading or tab change
+        // Main area: the combined view is always the All-tab content; the inline upload
+        // card gives way once documents exist.
         if (['loaded', 'docs-added', 'tab', 'cleared'].includes(reason)) {
             showCurrentView();
+        }
+        if (!hasDocs && ['cleared', 'loaded'].includes(reason)) {
+            el.combinedPreview.replaceChildren(); // nothing stale behind the upload card
         }
 
         // Combined preview when on All tab (skip when nothing relevant changed)
@@ -157,13 +173,13 @@ function jumpToPage(docId, citationIndex) {
     });
 }
 
-/** Show the correct content panel based on current state. */
+/** Show the correct content: All tab (with inline upload card when empty) vs a focused doc. */
 export function showCurrentView() {
     const hasDocs = state.documents.length > 0;
     const isAll = state.activeTab === 'all';
 
-    el.emptyState.classList.toggle('hidden', hasDocs);
-    el.overviewPanel.classList.toggle('hidden', !hasDocs || !isAll);
+    el.overviewPanel.classList.toggle('hidden', hasDocs && !isAll);
+    el.uploadCard.classList.toggle('hidden', hasDocs);
     el.workspace.classList.toggle('hidden', !hasDocs || isAll);
 }
 
@@ -234,7 +250,7 @@ function buildRailRow(doc, idx) {
     remove.tabIndex = 0; // keyboard-reachable (design law gate 4)
     remove.title = 'Remove document';
     remove.setAttribute('aria-label', `Remove ${doc.baseName}`);
-    remove.textContent = '✕';
+    remove.innerHTML = ICONS.x;
     remove.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -379,6 +395,8 @@ async function renderCombinedPreview() {
             if (token !== combinedToken) return;
             frag.appendChild(card);
             card.dataset.docId = doc.id; // combined-view cards navigate to their workspace
+            card.setAttribute('role', 'button');
+            card.tabIndex = 0;
             card.title = 'Open this page';
         }
     }

@@ -19,7 +19,7 @@
         <div class="header-controls">
             <span id="docCount" class="doc-count hidden"></span>
             <button id="helpBtn" class="btn" title="What this app does and how to use it">Help</button>
-            <button id="addPdfBtn" class="btn hidden">+ Add PDFs</button>
+            <button id="addPdfBtn" class="btn">+ Add PDFs</button>
             <select id="packagingSelect" class="format-select hidden" title="Export packaging">
                 <option value="combined">Combined</option>
                 <option value="perdoc">Per document</option>
@@ -37,8 +37,8 @@
     <!-- Cockpit shell: persistent rail + main; only main's content swaps -->
     <div class="cockpit">
 
-        <!-- Left rail: pinned All / combined row + per-doc rows. Hidden when no docs. -->
-        <aside id="appRail" class="app-rail hidden" aria-label="Documents">
+        <!-- Left rail: pinned All / combined row + per-doc rows. The shell never disappears. -->
+        <aside id="appRail" class="app-rail" aria-label="Documents">
             <button id="railAllRow" class="rail-row rail-row--all active" data-tab="all" type="button">
                 <span class="rail-thumb rail-thumb--all" aria-hidden="true">
                     <svg viewBox="0 0 56 70" fill="none" stroke="currentColor" stroke-width="1.6" preserveAspectRatio="xMidYMid meet">
@@ -55,11 +55,10 @@
             <div id="railDocs" class="rail-docs"></div>
         </aside>
 
-        <!-- Main area: one of empty / overview / workspace is visible at a time -->
+        <!-- Main area: the combined view IS the app. The upload card lives inline and
+             gives way to the combined preview once documents are loaded. -->
         <main class="app-main">
-
-            <!-- Empty / upload state (shown when no docs loaded) -->
-            <section id="emptyState" class="empty-state">
+            <section id="overviewPanel" class="overview-panel">
                 <div class="upload-card" id="dropZone">
                     <div class="upload-card-header">
                         <span>PDF COMPOSER</span>
@@ -81,10 +80,6 @@
                         <span>‹ ‹ ‹</span>
                     </div>
                 </div>
-            </section>
-
-            <!-- All / combined view: the combined preview alone (rail now absorbs the doc grid) -->
-            <section id="overviewPanel" class="overview-panel hidden">
                 <div id="combinedPreview" class="combined-preview-area"></div>
             </section>
 
@@ -94,8 +89,14 @@
                     <div class="panel-header">
                         <h2 class="panel-title">PAGES <span class="muted">(<span id="pageCount">0</span>)</span></h2>
                         <div class="selection-summary">
-                            <span class="sel-pill" title="Citation pages">○ <span id="citationCount">0</span></span>
-                            <span class="sel-pill" title="Cover page">★ <span id="coverLabel">—</span></span>
+                            <span class="sel-pill" title="Citation pages">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/></svg>
+                                <span id="citationCount">0</span>
+                            </span>
+                            <span class="sel-pill" title="Cover page">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 1.8 L9.9 5.7 L14.2 6.3 L11.1 9.3 L11.8 13.6 L8 11.6 L4.2 13.6 L4.9 9.3 L1.8 6.3 L6.1 5.7 Z"/></svg>
+                                <span id="coverLabel">—</span>
+                            </span>
                         </div>
                     </div>
                     <div id="pageList" class="page-list"></div>

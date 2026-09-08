@@ -6,6 +6,7 @@ import { detectWindows } from './frame-detect.js';
 import { registerUserFrame, removeUserFrame, userFrameList } from './frames.js';
 import { saveFrameRecord, loadFrameRecords, deleteFrameRecord } from './frame-store.js';
 import { toast } from './pdf-loader.js';
+import { ICONS } from './icons.js';
 
 let onChange = () => {};
 let img = null;        // loaded HTMLImageElement of the chosen file
@@ -44,8 +45,8 @@ function injectButton() {
     btn.id = 'uploadFrameBtn';
     btn.type = 'button';
     btn.className = 'icon-btn';
-    btn.title = 'Upload your own frame';
-    btn.textContent = '＋';
+    btn.title = 'Add your own frame';
+    btn.innerHTML = ICONS.plus;
     sel.insertAdjacentElement('afterend', btn);
     btn.addEventListener('click', open);
 }
