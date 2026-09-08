@@ -5,6 +5,7 @@ import { initPreview } from './preview.js';
 import { initExport } from './export.js';
 import { initDocumentsView } from './documents-view.js';
 import { initFrameUpload } from './frame-upload.js';
+import { initHelp } from './help.js';
 import { getActiveDoc, subscribe, notify } from './state.js';
 import { framesForMode, frameCompatible, preloadFrames, getFrame } from './frames.js';
 import { toast } from './pdf-loader.js';
@@ -82,6 +83,7 @@ function init() {
     initModeSwitch();
     initFrameSelect();
     initFrameUpload(populateFrameSelect); // upload-your-own-frames + boot-load persisted frames
+    initHelp(); // "?" field manual — available from the header at all times
     registerServiceWorker();
     console.log('PDF Composer initialized.');
 }

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <!-- RISO — warm-brutalist misprint frame (app design language). sliceFrac 0.2 -> ring = 80px.
+       Ink ring with an offset rose rule (riso double-print), halftone dot clusters in the corners.
+       Window (center) is transparent. -->
+  <path fill="#35302b" fill-rule="evenodd"
+        d="M0 0 H400 V400 H0 Z M80 80 H320 V320 H80 Z"/>
+  <!-- Offset rose rule: printed slightly off the window edge, riso-style -->
+  <rect x="86" y="74" width="232" height="232" fill="none" stroke="#e0596e" stroke-width="4"/>
+  <rect x="74" y="86" width="228" height="228" fill="none" stroke="#a83a4c" stroke-width="2"/>
+  <!-- Outer paper rule -->
+  <rect x="12" y="12" width="376" height="376" fill="none" stroke="#f1ece2" stroke-width="3"/>
+  <!-- Corner halftone dot clusters (within the 80px corner slices) -->
+  <g fill="#e0596e">
+    <circle cx="26" cy="26" r="7"/><circle cx="44" cy="26" r="5"/><circle cx="26" cy="44" r="5"/><circle cx="42" cy="42" r="3"/>
+    <circle cx="374" cy="26" r="7"/><circle cx="356" cy="26" r="5"/><circle cx="374" cy="44" r="5"/><circle cx="358" cy="42" r="3"/>
+    <circle cx="26" cy="374" r="7"/><circle cx="44" cy="374" r="5"/><circle cx="26" cy="356" r="5"/><circle cx="42" cy="358" r="3"/>
+    <circle cx="374" cy="374" r="7"/><circle cx="356" cy="374" r="5"/><circle cx="374" cy="356" r="5"/><circle cx="358" cy="358" r="3"/>
+  </g>
+</svg>

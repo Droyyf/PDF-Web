@@ -330,3 +330,25 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .uf-manage-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.9rem; padding: 4px 0; border-bottom: 1px solid var(--paper-deep); }
 .uf-del { padding: 3px 9px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+/* ---- Add-a-frame modal: guided steps + dropzone preview ---- */
+.uf-steps { margin: 0 0 12px; padding-left: 20px; font-size: 0.85rem; line-height: 1.6; color: var(--ink-soft); }
+.uf-steps b { color: var(--ink); }
+.uf-dropzone {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; min-height: 150px; background: var(--paper-deep); border: 2px dashed oklch(38% 0.014 62);
+    padding: 10px; margin-bottom: 10px; transition: border-color 0.1s, background 0.1s;
+}
+.uf-dropzone.drag-over { border-color: var(--rose-deep); background: oklch(95% 0.02 14); }
+.uf-dropzone-text { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.uf-dropzone canvas { max-width: 100%; display: block; }
+.uf-windows { font-size: 0.82rem; color: #1f7a45; }
+.uf-template { font-size: 0.8rem; }
+
+/* ---- Help modal ---- */
+.help-modal { width: 560px; }
+.help-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.help-head .modal-title { margin: 0; font-family: var(--f-display); font-size: 1.3rem; font-weight: 400; text-transform: uppercase; }
+.help-h { font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--rose-deep); margin: 16px 0 6px; }
+.help-modal p { font-size: 0.9rem; line-height: 1.55; margin: 0 0 4px; }
+.help-ol, .help-ul { margin: 0; padding-left: 20px; font-size: 0.9rem; line-height: 1.6; }

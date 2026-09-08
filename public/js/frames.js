@@ -51,6 +51,14 @@ export const FRAMES = [
             { x: 0.6278, y: 0.1625, w: 0.2417, h: 0.6625 },
         ],
     },
+    { id: 'riso', name: 'Riso', type: 'border', src: FRAME_DIR + 'riso.svg',
+      modes: ['top', 'sidebyside'], sliceFrac: 0.2, borderFrac: 0.07 },
+    { id: 'deco', name: 'Deco', type: 'border', src: FRAME_DIR + 'deco.svg',
+      modes: ['top', 'sidebyside'], sliceFrac: 0.2, borderFrac: 0.07 },
+    { id: 'stamp', name: 'Stamp', type: 'border', src: FRAME_DIR + 'stamp.svg',
+      modes: ['top', 'sidebyside'], sliceFrac: 0.2, borderFrac: 0.07 },
+    { id: 'rules', name: 'Rules', type: 'border', src: FRAME_DIR + 'rules.svg',
+      modes: ['top', 'sidebyside'], sliceFrac: 0.18, borderFrac: 0.055 },
 ];
 
 // User-uploaded frames (runtime; persisted in frame-store.js, loaded on boot). Merged with built-ins.

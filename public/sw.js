@@ -8,7 +8,7 @@
 //
 // To force a fresh shell after a release, bump CACHE_NAME.
 
-const CACHE_NAME = 'pdfw-v4';
+const CACHE_NAME = 'pdfw-v5';
 
 const PRECACHE = [
     '/',
@@ -33,6 +33,10 @@ const PRECACHE = [
     '/frames/top-classic.svg',
     '/frames/celtic.png',
     '/frames/leather-book.png',
+    '/frames/riso.svg',
+    '/frames/deco.svg',
+    '/frames/stamp.svg',
+    '/frames/rules.svg',
 ];
 
 self.addEventListener('install', (event) => {
