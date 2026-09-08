@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <!-- Single-window border frame tuned for SIDE-BY-SIDE (wider compositions): a thinner, beaded
+       burgundy/gold band. sliceFrac 0.18 -> ring = 72px each side. Window is transparent. -->
+  <path fill="#5b1a1a" fill-rule="evenodd"
+        d="M0 0 H400 V400 H0 Z M72 72 H328 V328 H72 Z"/>
+  <rect x="12" y="12" width="376" height="376" fill="none" stroke="#d4af37" stroke-width="4"/>
+  <rect x="26" y="26" width="348" height="348" fill="none" stroke="#efd98a" stroke-width="1.2"/>
+  <rect x="64" y="64" width="272" height="272" fill="none" stroke="#d4af37" stroke-width="4"/>
+  <!-- Corner bead clusters (within the 72px corner slice). -->
+  <g fill="#efd98a">
+    <circle cx="38" cy="38" r="7"/><circle cx="24" cy="48" r="4"/><circle cx="48" cy="24" r="4"/>
+    <circle cx="362" cy="38" r="7"/><circle cx="376" cy="48" r="4"/><circle cx="352" cy="24" r="4"/>
+    <circle cx="38" cy="362" r="7"/><circle cx="24" cy="352" r="4"/><circle cx="48" cy="376" r="4"/>
+    <circle cx="362" cy="362" r="7"/><circle cx="376" cy="352" r="4"/><circle cx="352" cy="376" r="4"/>
+  </g>
+</svg>

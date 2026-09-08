@@ -1,0 +1,257 @@
+// documents-view.js — the persistent left rail (All / combined + per-doc rows) and the
+// combined preview that fills the main area on the All tab. The rail replaces both the old
+// tab bar and the old All-Documents shape-poster grid. A single pub/sub subscriber drives
+// all header + rail + main-area panel updates.
+
+import { state, subscribe, notify } from './state.js';
+import { getCoverHiRes } from './composition.js';
+import { buildSideBySideCard, buildTopCard } from './preview.js';
+
+let el = {};
+let combinedToken = 0; // cancels stale combined-preview renders
+
+export function initDocumentsView() {
+    el = {
+        appRail: document.getElementById('appRail'),
+        railAllRow: document.getElementById('railAllRow'),
+        railAllSummary: document.getElementById('railAllSummary'),
+        railDocs: document.getElementById('railDocs'),
+        overviewPanel: document.getElementById('overviewPanel'),
+        combinedPreview: document.getElementById('combinedPreview'),
+        workspace: document.getElementById('workspace'),
+        emptyState: document.getElementById('emptyState'),
+        exportBtn: document.getElementById('exportBtn'),
+        exportFormat: document.getElementById('exportFormat'),
+        packagingSelect: document.getElementById('packagingSelect'),
+        docCount: document.getElementById('docCount'),
+        addPdfBtn: document.getElementById('addPdfBtn'),
+        fileInput: document.getElementById('fileInput'),
+    };
+
+    // Pinned All / combined row at the top of the rail
+    el.railAllRow.addEventListener('click', () => {
+        if (state.activeTab !== 'all') switchTab('all');
+    });
+
+    // Per-doc rail rows (event-delegated)
+    el.railDocs.addEventListener('click', (e) => {
+        const row = e.target.closest('[data-tab]');
+        if (!row || row.dataset.tab === state.activeTab) return;
+        switchTab(row.dataset.tab);
+    });
+
+    el.packagingSelect?.addEventListener('change', (e) => {
+        state.packaging = e.target.value;
+        // No notify needed — packaging is read at export time
+    });
+
+    el.addPdfBtn?.addEventListener('click', () => el.fileInput.click());
+
+    subscribe((reason) => {
+        const hasDocs = state.documents.length > 0;
+
+        // Header controls visibility
+        el.docCount?.classList.toggle('hidden', !hasDocs);
+        el.addPdfBtn?.classList.toggle('hidden', !hasDocs);
+        el.packagingSelect?.classList.toggle('hidden', !hasDocs);
+        el.exportFormat?.classList.toggle('hidden', !hasDocs);
+        el.exportBtn?.classList.toggle('hidden', !hasDocs);
+
+        if (hasDocs) {
+            el.docCount.textContent = `${state.documents.length} doc${state.documents.length === 1 ? '' : 's'}`;
+        }
+
+        // Rail visibility + content. Re-render on anything that changes a row's display.
+        el.appRail.classList.toggle('hidden', !hasDocs);
+        if (
+            hasDocs &&
+            ['loaded', 'docs-added', 'tab', 'cleared', 'selection', 'cover', 'mode', 'frame'].includes(reason)
+        ) {
+            renderRail();
+        }
+
+        // Export button enabled state (any doc has citations)
+        if (el.exportBtn) {
+            el.exportBtn.disabled = !state.documents.some((d) => d.selectedCitations.size > 0);
+        }
+
+        // Main area panel visibility after loading or tab change
+        if (['loaded', 'docs-added', 'tab', 'cleared'].includes(reason)) {
+            showCurrentView();
+        }
+
+        // Combined preview when on All tab (skip when nothing relevant changed)
+        if (
+            state.activeTab === 'all' &&
+            hasDocs &&
+            ['loaded', 'docs-added', 'tab', 'selection', 'cover', 'mode', 'frame'].includes(reason)
+        ) {
+            renderCombinedPreview();
+        }
+    });
+}
+
+/** Switch the active tab and update the UI. */
+export function switchTab(tabId) {
+    state.activeTab = tabId;
+    notify('tab');
+    showCurrentView();
+}
+
+/** Show the correct content panel based on current state. */
+export function showCurrentView() {
+    const hasDocs = state.documents.length > 0;
+    const isAll = state.activeTab === 'all';
+
+    el.emptyState.classList.toggle('hidden', hasDocs);
+    el.overviewPanel.classList.toggle('hidden', !hasDocs || !isAll);
+    el.workspace.classList.toggle('hidden', !hasDocs || isAll);
+}
+
+// ---------------------------------------------------------------------------
+// Rail
+// ---------------------------------------------------------------------------
+
+function renderRail() {
+    // Update the pinned All row's summary line
+    el.railAllSummary.textContent = allSummary();
+    el.railAllRow.classList.toggle('active', state.activeTab === 'all');
+
+    // Diff per-doc rows: rebuild from scratch (small N, cheap, idempotent)
+    el.railDocs.replaceChildren();
+    const frag = document.createDocumentFragment();
+    let idx = 0;
+    for (const doc of state.documents) {
+        frag.appendChild(buildRailRow(doc, idx));
+        idx++;
+    }
+    el.railDocs.appendChild(frag);
+}
+
+function buildRailRow(doc, idx) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'rail-row';
+    row.dataset.tab = doc.id;
+    if (state.activeTab === doc.id) row.classList.add('active');
+    if (doc.selectedCitations.size > 0) row.classList.add('has-cit');
+    if (!doc.pdfDoc) row.classList.add('rail-row--loading');
+
+    const thumb = document.createElement('span');
+    thumb.className = 'rail-thumb';
+    thumb.setAttribute('aria-hidden', 'true');
+    thumb.appendChild(lineArtShape(idx));
+
+    const info = document.createElement('span');
+    info.className = 'rail-info';
+
+    const name = document.createElement('span');
+    name.className = 'rail-name';
+    name.title = doc.fileName;
+    name.textContent = doc.baseName;
+
+    const summary = document.createElement('span');
+    summary.className = 'rail-summary';
+    summary.textContent = docSummary(doc);
+
+    info.appendChild(name);
+    info.appendChild(summary);
+    row.appendChild(thumb);
+    row.appendChild(info);
+    return row;
+}
+
+function allSummary() {
+    const docs = state.documents;
+    const totalCits = docs.reduce((n, d) => n + d.selectedCitations.size, 0);
+    return `${docs.length} doc${docs.length === 1 ? '' : 's'} · ${totalCits} citation${totalCits !== 1 ? 's' : ''}`;
+}
+
+function docSummary(doc) {
+    if (!doc.pdfDoc) return 'loading…';
+    const pages = `${doc.pageCount}p`;
+    const cits = doc.selectedCitations.size;
+    const mode = doc.mode === 'sidebyside' ? 'side-by-side' : 'top';
+    return `${pages} · ${cits} citation${cits !== 1 ? 's' : ''} · ${mode}`;
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const k in attrs) node.setAttribute(k, attrs[k]);
+    return node;
+}
+
+/**
+ * Mini shape-poster line-art — concentric line forms (funnel / coil / rosette),
+ * one variant per doc index, recolored via currentColor. Used as the rail row's identity
+ * mark when a doc has no real cover thumbnail.
+ */
+function lineArtShape(seed) {
+    const svg = svgEl('svg', {
+        class: 'rail-shape', viewBox: '0 0 120 160', fill: 'none',
+        stroke: 'currentColor', 'stroke-width': '1.1', preserveAspectRatio: 'xMidYMid meet',
+    });
+    const add = (tag, attrs) => svg.appendChild(svgEl(tag, attrs));
+    const variant = ((seed % 3) + 3) % 3;
+    if (variant === 0) {
+        for (let i = 0; i < 22; i++) { const t = i / 21; add('ellipse', { cx: 60, cy: (34 + t * 78).toFixed(1), rx: (7 + t * 47).toFixed(1), ry: (4 + t * 26).toFixed(1) }); }
+    } else if (variant === 1) {
+        for (let r = 0; r < 3; r++) { const y = 14 + r * 46; for (let i = 0; i < 8; i++) { const n = i * 2.2; add('rect', { x: (12 + n).toFixed(1), y: (y + n).toFixed(1), width: (96 - n * 2).toFixed(1), height: (38 - n * 2).toFixed(1), rx: (18 - n).toFixed(1) }); } }
+    } else {
+        for (let i = 0; i < 22; i++) { add('ellipse', { cx: 60, cy: 80, rx: 46, ry: 17, transform: `rotate(${(i * 8.18).toFixed(1)} 60 80)` }); }
+    }
+    return svg;
+}
+
+// ---------------------------------------------------------------------------
+// Combined preview (All / combined tab)
+// ---------------------------------------------------------------------------
+
+async function renderCombinedPreview() {
+    const token = ++combinedToken;
+    const docs = state.documents.filter((d) => d.pdfDoc && d.selectedCitations.size > 0);
+
+    el.combinedPreview.replaceChildren();
+
+    if (docs.length === 0) {
+        const msg = document.createElement('p');
+        msg.className = 'preview-empty';
+        // Cockpit edge: docs loaded but no citations yet — guide into a focused doc.
+        msg.textContent = state.documents.length > 0
+            ? 'Select citation pages inside a document (use the rail) to compose the combined preview.'
+            : 'Select citation pages in each document to see a combined preview.';
+        el.combinedPreview.appendChild(msg);
+        return;
+    }
+
+    const containerW = el.combinedPreview.clientWidth || 700;
+    const frag = document.createDocumentFragment();
+
+    for (const doc of docs) {
+        if (token !== combinedToken) return;
+
+        const header = document.createElement('div');
+        header.className = 'combined-doc-header';
+        header.textContent = doc.baseName;
+        frag.appendChild(header);
+
+        const cover = await getCoverHiRes(doc);
+        if (token !== combinedToken) return;
+
+        const citations = [...doc.selectedCitations].sort((a, b) => a - b);
+        for (const ci of citations) {
+            if (token !== combinedToken) return;
+            const page = await doc.pdfDoc.getPage(ci + 1);
+            if (token !== combinedToken) return;
+            const card =
+                doc.mode === 'sidebyside'
+                    ? await buildSideBySideCard(doc, page, cover, ci, containerW)
+                    : await buildTopCard(doc, page, cover, ci, containerW, false);
+            if (token !== combinedToken) return;
+            frag.appendChild(card);
+        }
+    }
+
+    el.combinedPreview.appendChild(frag);
+}

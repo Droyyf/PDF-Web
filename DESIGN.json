@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 2,
+  "title": "Design System: PDF Composer",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral", "displayName": "Paper", "canonical": "oklch(95% 0.014 85)",
+        "tonalRamp": ["oklch(30% 0.012 85)", "oklch(42% 0.013 85)", "oklch(54% 0.014 85)", "oklch(66% 0.015 85)", "oklch(78% 0.015 85)", "oklch(88% 0.015 85)", "oklch(93% 0.014 85)", "oklch(97% 0.011 85)"]
+      },
+      "paper-deep": {
+        "role": "neutral", "displayName": "Paper Deep", "canonical": "oklch(91% 0.016 85)",
+        "tonalRamp": ["oklch(28% 0.013 85)", "oklch(40% 0.015 85)", "oklch(52% 0.016 85)", "oklch(64% 0.016 85)", "oklch(76% 0.016 85)", "oklch(85% 0.016 85)", "oklch(91% 0.016 85)", "oklch(95% 0.012 85)"]
+      },
+      "ink": {
+        "role": "neutral", "displayName": "Ink", "canonical": "oklch(23% 0.014 62)",
+        "tonalRamp": ["oklch(18% 0.012 62)", "oklch(23% 0.014 62)", "oklch(31% 0.014 62)", "oklch(40% 0.014 62)", "oklch(52% 0.013 62)", "oklch(66% 0.012 62)", "oklch(80% 0.01 62)", "oklch(92% 0.008 62)"]
+      },
+      "ink-soft": {
+        "role": "neutral", "displayName": "Ink Soft", "canonical": "oklch(44% 0.014 62)",
+        "tonalRamp": ["oklch(22% 0.012 62)", "oklch(33% 0.014 62)", "oklch(44% 0.014 62)", "oklch(55% 0.013 62)", "oklch(66% 0.012 62)", "oklch(77% 0.01 62)", "oklch(86% 0.009 62)", "oklch(93% 0.007 62)"]
+      },
+      "noir": {
+        "role": "neutral", "displayName": "Noir", "canonical": "oklch(20% 0.014 8)",
+        "note": "Charcoal hero ground with a faint warm-rose cast. Carries grain + condensed display. Text on noir is paper; accents are rose-light. Never used for working/reading surfaces.",
+        "tonalRamp": ["oklch(13% 0.012 8)", "oklch(17% 0.013 8)", "oklch(20% 0.014 8)", "oklch(27% 0.014 8)", "oklch(36% 0.013 8)", "oklch(50% 0.011 10)", "oklch(70% 0.008 20)", "oklch(88% 0.006 40)"]
+      },
+      "rose": {
+        "role": "primary", "displayName": "Rose (riso duotone)", "canonical": "oklch(62% 0.19 8)",
+        "note": "Loud canonical rose is large-display + image-duotone on noir ONLY (fails 4.5:1 for small text). Use step index 2 (Rose Deep, oklch(48% 0.17 14)) for any rose text/state on paper; step index 5 (Rose Light, oklch(72% 0.16 8)) for rose text on noir.",
+        "tonalRamp": ["oklch(30% 0.12 12)", "oklch(40% 0.16 12)", "oklch(48% 0.17 14)", "oklch(56% 0.19 10)", "oklch(62% 0.19 8)", "oklch(72% 0.16 8)", "oklch(83% 0.10 8)", "oklch(92% 0.05 8)"]
+      },
+      "ochre": {
+        "role": "tertiary", "displayName": "Ochre", "canonical": "oklch(66% 0.12 74)",
+        "note": "Reserved exclusively for the cover page. Hue 74 keeps it distinct from rose (hue 8).",
+        "tonalRamp": ["oklch(34% 0.07 74)", "oklch(44% 0.09 74)", "oklch(55% 0.11 74)", "oklch(66% 0.12 74)", "oklch(75% 0.11 74)", "oklch(83% 0.09 74)", "oklch(90% 0.06 74)", "oklch(95% 0.03 74)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display (Anton)", "purpose": "Wordmark, empty-state hero, and noir poster headlines ONLY. Condensed black grotesque, uppercase, large (never below ~2rem). Illegible at UI size." },
+      "headline": { "displayName": "Headline (Space Grotesk 600)", "purpose": "Panel titles and the active document name. Grotesque, not Anton, so panel titles stay legible." },
+      "label": { "displayName": "Label / Mono (IBM Plex Mono)", "purpose": "Exact values and poster code numbers: page numbers, counts, filenames, packaging mode, P.N index marks. Uppercase." }
+    },
+    "shadows": [
+      { "name": "hard-lift", "value": "4px 4px 0 oklch(23% 0.014 62)", "purpose": "The only shadow. Open modal, dragged cover overlay, pressed-out active state. Solid offset, zero blur." },
+      { "name": "hard-lift-noir", "value": "4px 4px 0 oklch(95% 0.014 85)", "purpose": "Hard Lift on noir surfaces, where ink would vanish: offset is paper (or loud rose oklch(62% 0.19 8))." }
+    ],
+    "texture": [
+      { "name": "grain", "value": "static noise tile or SVG feTurbulence at 6-10% opacity, multiply/overlay over a noir fill", "purpose": "Matte riso/photocopy noise. NOIR HERO SURFACES ONLY. Never animated, never behind reading/working text." },
+      { "name": "halftone", "value": "SVG dot pattern or radial-gradient tile, ~8px cell, rose-on-noir", "purpose": "Duotone image treatment and the empty-state field. Hero surfaces only." }
+    ],
+    "motion": [
+      { "name": "ease-out-quint", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Default easing for state transitions. Exponential ease-out, no bounce." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce) { transition: none; }", "purpose": "Honor reduced motion: cover drag/resize stays functional with motion removed. Grain/halftone are already static." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "900px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary action (Export). Ink fill, mono uppercase label, square, hover swaps to Rose Deep (keeps the paper label at AA).",
+      "html": "<button class=\"ds-btn-primary\">EXPORT</button>",
+      "css": ".ds-btn-primary { background: oklch(23% 0.014 62); color: oklch(95% 0.014 85); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; padding: 10px 18px; border: none; border-radius: 0; cursor: pointer; transition: background 0.18s cubic-bezier(0.22,1,0.36,1); } .ds-btn-primary:hover { background: oklch(48% 0.17 14); } .ds-btn-primary:active { background: oklch(40% 0.16 12); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(48% 0.17 14); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action (Cancel). Paper fill, 2px ink border, square.",
+      "html": "<button class=\"ds-btn-ghost\">CANCEL</button>",
+      "css": ".ds-btn-ghost { background: oklch(95% 0.014 85); color: oklch(23% 0.014 62); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; padding: 9px 16px; border: 2px solid oklch(23% 0.014 62); border-radius: 0; cursor: pointer; transition: background 0.18s cubic-bezier(0.22,1,0.36,1); } .ds-btn-ghost:hover { background: oklch(91% 0.016 85); } .ds-btn-ghost:focus-visible { outline: 2px solid oklch(48% 0.17 14); outline-offset: 2px; }"
+    },
+    {
+      "name": "Citation Toggle Chip",
+      "kind": "chip",
+      "refersTo": "chip-citation",
+      "description": "Marks a page as a citation. State is border + glyph + color (Rose Deep), never color alone.",
+      "html": "<button class=\"ds-chip-cite is-on\" aria-pressed=\"true\">CITE</button>",
+      "css": ".ds-chip-cite { background: oklch(95% 0.014 85); color: oklch(23% 0.014 62); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.7rem; letter-spacing: 0.05em; padding: 5px 9px; border: 2px solid oklch(23% 0.014 62); border-radius: 0; cursor: pointer; } .ds-chip-cite.is-on { border-color: oklch(48% 0.17 14); color: oklch(48% 0.17 14); box-shadow: inset 0 -3px 0 oklch(48% 0.17 14); } .ds-chip-cite.is-on::before { content: '\\2713 '; } .ds-chip-cite:focus-visible { outline: 2px solid oklch(48% 0.17 14); outline-offset: 2px; }"
+    },
+    {
+      "name": "Cover Toggle Chip",
+      "kind": "chip",
+      "refersTo": "chip-cover",
+      "description": "Marks the cover page. Ochre is reserved for this and nothing else; star glyph carries state.",
+      "html": "<button class=\"ds-chip-cover is-on\" aria-pressed=\"true\">\\u2605 COVER</button>",
+      "css": ".ds-chip-cover { background: oklch(95% 0.014 85); color: oklch(23% 0.014 62); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.7rem; letter-spacing: 0.05em; padding: 5px 9px; border: 2px solid oklch(23% 0.014 62); border-radius: 0; cursor: pointer; } .ds-chip-cover.is-on { background: oklch(66% 0.12 74); border-color: oklch(44% 0.09 74); } .ds-chip-cover:focus-visible { outline: 2px solid oklch(48% 0.17 14); outline-offset: 2px; }"
+    },
+    {
+      "name": "Document Tab",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Per-document file-folder tab. Active tab joins its panel (bottom rule removed).",
+      "html": "<div class=\"ds-tabrow\"><button class=\"ds-tab\">All Documents</button><button class=\"ds-tab is-active\">thesis-ch3</button></div>",
+      "css": ".ds-tabrow { display: flex; gap: 2px; border-bottom: 2px solid oklch(23% 0.014 62); } .ds-tab { background: oklch(95% 0.014 85); color: oklch(44% 0.014 62); font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.85rem; font-weight: 600; padding: 8px 14px; border: 2px solid transparent; border-bottom: none; border-radius: 0; margin-bottom: -2px; cursor: pointer; } .ds-tab:hover { color: oklch(23% 0.014 62); } .ds-tab.is-active { color: oklch(23% 0.014 62); background: oklch(91% 0.016 85); border-color: oklch(23% 0.014 62); border-bottom: 2px solid oklch(91% 0.016 85); }"
+    },
+    {
+      "name": "Export Stamp",
+      "kind": "badge",
+      "refersTo": "stamp",
+      "description": "The seal on an export-complete confirmation. A 2px ink box with mono uppercase, echoing the reference 'BCR.' mark. One per surface, never repeated.",
+      "html": "<span class=\"ds-stamp\">ORIGINAL \\u00b7 COMPOSED</span>",
+      "css": ".ds-stamp { display: inline-block; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.68rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: oklch(23% 0.014 62); border: 2px solid oklch(23% 0.014 62); border-radius: 0; padding: 3px 8px; transform: rotate(-3deg); }"
+    },
+    {
+      "name": "Noir Poster Panel",
+      "kind": "surface",
+      "refersTo": "noir-hero",
+      "description": "A brand/hero/confirmation surface: charcoal ground, matte grain, condensed Anton display, rose duotone, mono code number. NOT dark-neon: flat inks, no gradient, no glow.",
+      "html": "<section class=\"ds-noir\"><span class=\"ds-noir-code\">P.00 \\u2014 373</span><h1 class=\"ds-noir-head\">COMPOSE</h1><p class=\"ds-noir-sub\">Drop a PDF to begin.</p></section>",
+      "css": ".ds-noir { position: relative; background: oklch(20% 0.014 8); color: oklch(95% 0.014 85); padding: 48px 32px; border-radius: 0; overflow: hidden; } .ds-noir::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.08; background-image: radial-gradient(oklch(95% 0.014 85) 0.5px, transparent 0.5px); background-size: 4px 4px; mix-blend-mode: overlay; } .ds-noir-code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.7rem; letter-spacing: 0.1em; color: oklch(72% 0.16 8); } .ds-noir-head { font-family: 'Anton', 'Arial Narrow', sans-serif; font-weight: 400; font-size: clamp(2.5rem, 8vw, 6rem); line-height: 0.9; letter-spacing: 0.005em; text-transform: uppercase; color: oklch(62% 0.19 8); margin: 8px 0; } .ds-noir-sub { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 0.95rem; color: oklch(88% 0.006 40); margin: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Composing Stick, printed as a poster.",
+    "overview": "The product's soul is the composing stick: a researcher assembling pages with precision, by hand, into something printable. The skin is the brutalist riso poster from the reference set: a charcoal ground, one riso-rose duotone ink, heavy condensed display, monospace detail, matte print grain, and a tight grid of framed windows. The bridge is literal, those posters frame their photos in 2px-ruled windows with corner ticks, and this app frames PDF pages in exactly the same windows, so the design names what the tool already does rather than decorating it. The system runs on two grounds: a warm-newsprint BENCH (paper + ink) for all reading and working, which is the WCAG-AA, low-glare, aging-eyes surface the product is built for; and a charcoal POSTER (noir + rose + grain + Anton) for brand moments only, the empty state, export confirmation, and wordmark. Depth is a hard solid offset, never a blur. Color is flat ink, never a gradient or a glow.",
+    "keyCharacteristics": [
+      "Two grounds, one rule each: paper for working/reading, noir for brand/confirmation.",
+      "One riso-rose duotone accent plus an ochre reserved entirely for the cover; the frames carry the rest of the color.",
+      "Heavy 2px ink rules and square corners (0px, 2px max) everywhere; no rounded cards, no gray hairlines.",
+      "Condensed black display (Anton) for poster headlines and the wordmark only; grotesque and mono do all functional work.",
+      "Graphic furniture from the references (registration marks, mono code numbers, a stamp, framed windows) used as restrained, honest UI."
+    ],
+    "rules": [
+      { "name": "The Two-Grounds Rule", "body": "Every surface is bench (paper, for reading/working) or poster (noir, for brand/confirmation). Choosing noir for a dense working surface trades the product's legibility commitment for poster drama in the wrong place.", "section": "colors" },
+      { "name": "The One Duotone Rule", "body": "Rose is the only general accent, under ~10% of any bench screen. Loud Rose is large-display/image-duotone only; Rose Deep carries rose text/state on paper; Rose Light does so on noir. Ochre belongs to the cover. No third UI color.", "section": "colors" },
+      { "name": "The Mono-for-Truth Rule", "body": "Anything exact (page numbers, counts, filenames, packaging, code marks) is set in IBM Plex Mono. Prose and headings never are.", "section": "typography" },
+      { "name": "The Display-Is-Loud Rule", "body": "Anton is for the wordmark, empty-state hero, and noir poster headlines, always large and uppercase, never below ~2rem. It never drops into UI, panel titles, or buttons.", "section": "typography" },
+      { "name": "The Hard-Edge Rule", "body": "Blur is forbidden in shadows. Depth is a solid offset (4px 4px 0) or a heavier border, never a haze or backdrop-filter.", "section": "elevation" },
+      { "name": "The Grain-Is-Matte Rule", "body": "Texture is matte print noise, not light: static, low-opacity, multiply/overlay on noir hero surfaces only. It never animates, glows, or sits behind reading/working text.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep every working/reading surface on the light bench; reserve noir for the empty state, export confirmation, and wordmark.",
+      "Do draw every separator and boundary as a 2px ink rule or a paper-deep tonal step.",
+      "Do set every exact value and code mark in IBM Plex Mono.",
+      "Do keep corners square (0px, 2px maximum).",
+      "Do convey depth with the single Hard Lift shadow or a heavier border.",
+      "Do use Rose Deep for rose text/state on paper, Rose Light on noir, and keep ochre exclusively on the cover.",
+      "Do double-encode state with color plus a glyph and a border (color-blind and aging-eyes safe).",
+      "Do treat grain, registration marks, code numbers, and the stamp as restrained, honest UI, not stickers."
+    ],
+    "donts": [
+      "Don't confuse the noir poster with dark-neon: no gradients, no glassmorphism, no glow or bloom. If it glows, it is wrong.",
+      "Don't put grain, halftone, or condensed display behind dense reading/working text, or on any bench surface.",
+      "Don't use loud Rose for small text or state; that is Rose Deep (paper) or Rose Light (noir).",
+      "Don't build soft generic-SaaS UI: rounded gray cards, one blue accent, hero-metric panels.",
+      "Don't add literal skeuomorphism: faux leather, stitching, glossy buttons.",
+      "Don't use blurred shadows or backdrop-filter: blur anywhere.",
+      "Don't use 1px light-gray hairline dividers; make them ink.",
+      "Don't use pure #000 or #fff; ink, paper, and noir are warm-tinted.",
+      "Don't introduce a third UI accent color, or scatter furniture (more than one stamp/icon/dingbat run per surface)."
+    ]
+  }
+}

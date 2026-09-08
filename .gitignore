@@ -1,0 +1,17 @@
+# Visual-companion brainstorm scratch (mockups, session state)
+.superpowers/
+
+# Local agent/tool config
+.claude/
+
+# Node
+node_modules/
+
+# Test artifacts & unrelated assets (not part of the app)
+uploads/
+fonts/
+temp/
+*.log
+
+# macOS
+.DS_Store

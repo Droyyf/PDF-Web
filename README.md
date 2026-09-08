@@ -1,118 +1,59 @@
-# PDF Composer Web
+# PDF Composer
 
-A web-based version of the PDF composer application that replicates the core functionality of the Swift macOS app.
+A browser-based tool for composing a **cover page** onto selected **citation pages** of a PDF.
+All processing happens client-side (PDF.js + pdf-lib via CDN); the Node server only serves the
+static files.
 
-## Core Features Implemented ✅
+## Features
 
-### Phase 1: Core Functions (Complete)
+1. **Upload any PDF, any size** — loaded entirely in the browser (no upload limit). Page
+   thumbnails render on demand as you scroll, so large documents (hundreds of pages) stay fast.
+2. **Page list** — every page shown as a thumbnail with citation / cover toggles.
+3. **Auto cover + multi-citation** — the first page is auto-selected as the cover; select any number
+   of citation pages.
+4. **Live preview** — every selected citation is previewed simultaneously, each composed with the
+   cover.
+5. **Two modes**
+   - **Side-by-side** (default): citation and cover rendered at equal size, flush, no gap.
+   - **Top**: the cover is overlaid on the citation at 10% (default), draggable and resizable.
+6. **Synced editing** — in top mode, moving/resizing the cover on any one page updates every page
+   at once (the transform is stored as fractions of the page, so it applies identically everywhere).
+7. **Export** *(optional)* — a **Batch** toggle (shown when more than one citation is selected)
+   controls packaging:
+   - **Batch on** (default): a single file — a multi-page PDF, or one combined image with every
+     page stacked into a single PNG/JPEG.
+   - **Batch off**: one file per citation — a single-page PDF each, or one image each (the browser
+     may prompt to allow multiple downloads).
 
-1. **PDF Upload & Processing**
-   - File upload with drag & drop support
-   - PDF parsing and page extraction
-   - Memory-efficient processing (50MB limit)
-   - Security validation
-
-2. **PDF Preview & Navigation**
-   - Full-screen PDF viewer with zoom
-   - Thumbnail sidebar with page overview
-   - Keyboard navigation (arrow keys)
-   - Page jump functionality
-
-3. **Page Selection System**
-   - Citation page selection (multi-select)
-   - Cover page selection (single select)
-   - Visual selection indicators
-   - Real-time selection summary
-
-4. **PDF Composition**
-   - Merge selected pages into new document
-   - Cover page placement options (top/center/bottom)
-   - Memory-efficient composition
-   - Export to PDF format
-
-5. **User Interface**
-   - Responsive design matching app functionality
-   - Loading states with progress indicators
-   - Toast notifications for user feedback
-   - Error handling and validation
-
-## Technology Stack
-
-- **Backend**: Node.js + Express
-- **PDF Processing**: PDF-lib, pdf2pic, Sharp
-- **Frontend**: Vanilla JavaScript + PDF.js
-- **Security**: Helmet, CORS, file validation
-- **File Handling**: Multer for uploads
-
-## Installation & Setup
+## Run
 
 ```bash
-# Navigate to project directory
-cd /Users/droy-/Desktop/PDFW
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
-
-# Or start production server
-npm start
+npm start            # serves http://localhost:3000  (or: npm run dev)
 ```
 
-## Usage
-
-1. **Upload PDF**: Click "OPEN PDF" or drag & drop a PDF file
-2. **Select Pages**: Use thumbnail sidebar to select citation pages (○/✓) and cover page (☆/★)
-3. **Compose**: Click "APPLY SELECTION" when ready
-4. **Export**: Choose cover placement and export format, then click "COMPOSE PDF"
-5. **Download**: Composed PDF downloads automatically
-
-## API Endpoints
-
-- `POST /api/upload` - Upload PDF file
-- `GET /api/pdf/:fileId/info` - Get PDF information
-- `GET /api/pdf/:fileId/thumbnails` - Generate thumbnails
-- `POST /api/compose` - Compose selected pages
-- `GET /api/download/:filename` - Download composed PDF
-
-## File Structure
+## Architecture
 
 ```
-PDFW/
-├── server.js           # Express server & API endpoints
-├── package.json        # Dependencies & scripts
-├── public/
-│   ├── index.html     # Main application UI
-│   ├── styles.css     # Styling (functional, non-brutalist)
-│   └── app.js         # Frontend JavaScript logic
-├── uploads/           # Temporary uploaded files
-└── temp/             # Temporary composed files
+server.js                 # static file server + CSP (no PDF processing)
+public/
+  index.html              # markup
+  css/styles.css          # functional styling
+  js/
+    main.js               # bootstrap + mode switch wiring
+    state.js              # shared state + pub/sub + shared cover transform
+    pdf-loader.js         # client-side load, page list, on-demand thumbnails, selection
+    composition.js        # render core: fracToPixels contract, hi-res cover cache, both modes
+    preview.js            # live per-citation cards + interactive (drag/resize) cover, synced
+    export.js             # multi-page PDF / per-page image export
 ```
 
-## Swift App Equivalents
+Key design point: the shared cover transform `{xFrac, yFrac, scaleFrac}` and a single
+`fracToPixels()` mapping are used by both the live preview and export, so the exported result
+always matches what you positioned on screen.
 
-| Swift Component | Web Implementation |
-|---|---|
-| `PDFService.swift` | `PDFService` class in server.js |
-| `Composer.swift` | `Composer` class in server.js |
-| `BrutalistAppShell.swift` | Main UI in index.html + app.js |
-| `ThumbnailCache.swift` | Browser-based caching in app.js |
-| `PageSelectionView.swift` | Selection UI in frontend |
+## Notes
 
-## Next Steps: Phase 2 (Design)
-
-Once core functionality is verified:
-- Implement brutalist design aesthetic
-- Add noise textures and visual effects
-- Enhanced typography and spacing
-- Custom animations and transitions
-- Design system consistency
-
-## Performance Notes
-
-- 50MB file size limit for uploads
-- Thumbnail generation limited to 100 pages
-- Memory-efficient PDF processing
-- Client-side PDF rendering with PDF.js
-- Automatic cleanup of temporary files
+- Requires a modern browser (ES modules, IntersectionObserver, Pointer Events).
+- "Any size" is bounded by available browser memory; the page list is rendered on demand to push
+  that bound as high as practical.

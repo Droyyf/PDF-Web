@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <!-- Single-window border frame for TOP mode. sliceFrac 0.22 -> ring = 88px each side.
+       Edges are solid bands + parallel lines (stretch losslessly); ornament lives in the
+       corner slices [0..88] so it is never stretched. Window (center) is transparent. -->
+  <!-- Navy ring: outer rect minus the transparent window, even-odd. -->
+  <path fill="#1f3a5f" fill-rule="evenodd"
+        d="M0 0 H400 V400 H0 Z M88 88 H312 V312 H88 Z"/>
+  <!-- Gold lines: outer, mid (thin), and inner around the window. -->
+  <rect x="16" y="16" width="368" height="368" fill="none" stroke="#c9a24a" stroke-width="5"/>
+  <rect x="34" y="34" width="332" height="332" fill="none" stroke="#e6c878" stroke-width="1.5"/>
+  <rect x="78" y="78" width="244" height="244" fill="none" stroke="#c9a24a" stroke-width="5"/>
+  <!-- Corner diamonds (within the 88px corner slice). -->
+  <g fill="#e6c878">
+    <path d="M44 28 L60 44 L44 60 L28 44 Z"/>
+    <path d="M356 28 L372 44 L356 60 L340 44 Z"/>
+    <path d="M44 340 L60 356 L44 372 L28 356 Z"/>
+    <path d="M356 340 L372 356 L356 372 L340 356 Z"/>
+  </g>
+</svg>

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1000" viewBox="0 0 1500 1000">
+  <!-- Two-window "book" frame for SIDE-BY-SIDE mode: left window = citation, right = cover,
+       with a decorative leather border and central spine. Both windows are transparent; content
+       is drawn behind, the frame overlay on top. Fixed template (not 9-sliced). -->
+  <!-- Leather body: outer rect minus the two windows (even-odd). Spine band (700..800) stays filled. -->
+  <path fill="#5a3520" fill-rule="evenodd"
+        d="M0 0 H1500 V1000 H0 Z M60 60 H700 V940 H60 Z M800 60 H1440 V940 H800 Z"/>
+  <!-- subtle inner leather shade frame -->
+  <rect x="0" y="0" width="1500" height="1000" fill="none" stroke="#3f2516" stroke-width="14"/>
+  <!-- Outer gold rule. -->
+  <rect x="26" y="26" width="1448" height="948" fill="none" stroke="#c9a24a" stroke-width="7"/>
+  <rect x="42" y="42" width="1416" height="916" fill="none" stroke="#e6c878" stroke-width="2"/>
+  <!-- Gold rules around each window. -->
+  <g fill="none" stroke="#c9a24a" stroke-width="6">
+    <rect x="52" y="52" width="656" height="896"/>
+    <rect x="792" y="52" width="656" height="896"/>
+  </g>
+  <!-- Central spine: double gold rules + stacked ornaments. -->
+  <g stroke="#c9a24a" stroke-width="5" fill="none">
+    <line x1="714" y1="40" x2="714" y2="960"/>
+    <line x1="786" y1="40" x2="786" y2="960"/>
+  </g>
+  <g fill="#e6c878">
+    <path d="M750 150 L770 200 L750 250 L730 200 Z"/>
+    <circle cx="750" cy="330" r="14"/>
+    <path d="M750 430 L772 500 L750 570 L728 500 Z"/>
+    <circle cx="750" cy="670" r="14"/>
+    <path d="M750 760 L770 810 L750 860 L730 810 Z"/>
+  </g>
+  <!-- Outer corner diamonds. -->
+  <g fill="#e6c878">
+    <path d="M70 44 L96 70 L70 96 L44 70 Z"/>
+    <path d="M1430 44 L1456 70 L1430 96 L1404 70 Z"/>
+    <path d="M70 904 L96 930 L70 956 L44 930 Z"/>
+    <path d="M1430 904 L1456 930 L1430 956 L1404 930 Z"/>
+  </g>
+</svg>
