@@ -8,12 +8,16 @@
 //
 // To force a fresh shell after a release, bump CACHE_NAME.
 
-const CACHE_NAME = 'pdfw-v7';
+const CACHE_NAME = 'pdfw-v8';
 
 const PRECACHE = [
     '/',
     '/index.html',
     '/css/styles.css',
+    '/fonts/fonts.css',
+    '/fonts/anton-400.woff2',
+    '/fonts/space-grotesk-var.woff2',
+    '/fonts/ibm-plex-mono-500.woff2',
     '/js/main.js',
     '/js/state.js',
     '/js/pdf-loader.js',

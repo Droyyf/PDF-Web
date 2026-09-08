@@ -17,16 +17,29 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // Security headers. The app has no inline scripts or styles (no <script> bodies, no
 // style= attributes, no setAttribute('style')), so the CSP needs no 'unsafe-inline'.
-// Google Fonts is the only external origin. pdf.js's optional Function()-based fast path
-// is already off (no 'unsafe-eval'); it falls back to its regular path without error.
-// COEP stays off because it would block the no-cors Google Fonts stylesheet; HSTS is
-// pointless on a plain-http local server.
+// pdf.js's optional Function()-based fast path is already off (no 'unsafe-eval'); it falls
+// back to its regular path without error. COEP stays off because it would block the
+// no-cors Google Fonts stylesheet; HSTS is pointless on a plain-http local server.
+const MV3_SIM = process.env.MV3_SIM === '1'; // simulate Manifest V3 extension_pages CSP
 app.use(helmet({
     contentSecurityPolicy: {
-        directives: {
+        directives: MV3_SIM ? {
+            // Approximates Chrome's MV3 extension_pages CSP (script-src 'self', object-src
+            // 'self', eval hard-banned) plus full resource bundling: NOTHING remote. Used
+            // for the extension feasibility probe — the app must run with zero violations.
             defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "https://fonts.googleapis.com"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'"],
+            fontSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "blob:"],
+            connectSrc: ["'self'"],
+            workerSrc: ["'self'", "blob:"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: [],
+        } : {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'"],
+            fontSrc: ["'self'", "data:"],
             scriptSrc: ["'self'"],
             imgSrc: ["'self'", "data:", "blob:"],
             connectSrc: ["'self'"],

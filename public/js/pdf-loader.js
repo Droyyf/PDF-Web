@@ -223,7 +223,12 @@ async function loadDoc(doc, onProgress) {
         buf = new Uint8Array(await doc.file.arrayBuffer());
         onProgress?.(1);
     }
-    const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const pdfDoc = await pdfjsLib.getDocument({
+        data: buf,
+        // MV3 extension pages hard-ban eval/Function — this flag keeps pdf.js on its
+        // non-evaluating code path (also what our strict server CSP already forces).
+        isEvalSupported: false,
+    }).promise;
     // The doc may have been removed (✕) while this load was in flight — free what we just
     // parsed instead of attaching it to a dead doc.
     if (doc._destroyed) {
