@@ -4,6 +4,7 @@
 // and rebuilds the page list for the new active doc.
 
 import { state, notify, subscribe, getActiveDoc, addDocuments, resetAll } from './state.js';
+import { queuePageRender } from './composition.js';
 import { ICONS } from './icons.js';
 
 const pdfjsLib = window.pdfjsLib;
@@ -66,6 +67,16 @@ export function initLoader() {
 
     // On tab switch or initial load: cancel stale renders, rebuild page list for the active doc
     subscribe((reason) => {
+        if (reason === 'cleared') {
+            // All documents removed: drop the stale page list (it belongs to a dead doc).
+            currentTaskId++;
+            thumbObserver?.disconnect();
+            resetThumbnailQueue();
+            el.pageList.replaceChildren();
+            if (el.pageCount) el.pageCount.textContent = '0';
+            updateSelectionSummary();
+            return;
+        }
         if (!['tab', 'loaded'].includes(reason)) return;
         if (reason === 'tab') {
             currentTaskId++; // cancel in-flight thumbnail renders for the previous tab
@@ -309,7 +320,9 @@ async function renderThumb(page) {
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.floor(viewport.width));
         canvas.height = Math.max(1, Math.floor(viewport.height));
-        await p.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        await queuePageRender(p, async () => {
+            await p.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        });
         p.cleanup(); // release this page's intermediate render resources back to the worker
         url = await new Promise((resolve, reject) =>
             canvas.toBlob((b) => (b ? resolve(URL.createObjectURL(b)) : reject(new Error('toBlob failed'))), 'image/png')

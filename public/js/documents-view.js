@@ -140,22 +140,29 @@ export function switchTab(tabId) {
 }
 
 /**
- * Remove one document: free its resources, drop it from state, and land somewhere sane
- * (the All tab). When the last doc goes, the app returns to the empty/upload state.
+ * Remove one document: free its resources, drop it from state, and land somewhere sane.
+ * Any in-flight combined render is cancelled first (its doc is about to die), and the
+ * last-document case notifies 'cleared' so the combined preview is actually cleared —
+ * notifying 'docs-added' with zero docs would leave its composed cards on screen.
  */
 function removeDoc(id) {
     const doc = getDoc(id);
     if (!doc) return;
+    combinedToken++; // cancel renders that touch the dying doc
     destroyDoc(doc);
     state.documents.splice(state.documents.findIndex((d) => d.id === id), 1);
     toast(`Removed "${doc.baseName}"`, 'info');
+    if (state.documents.length === 0) {
+        state.activeTab = 'all';
+        notify('cleared');
+        return;
+    }
     if (state.activeTab !== id) {
-        notify('docs-added'); // rail + header re-render; current view untouched
+        notify('docs-added'); // rail + header + combined re-render; current view untouched
         return;
     }
     state.activeTab = 'all';
-    if (state.documents.length === 0) notify('cleared');
-    else notify('tab');
+    notify('tab');
     showCurrentView();
 }
 
@@ -374,30 +381,35 @@ async function renderCombinedPreview() {
 
     for (const doc of docs) {
         if (token !== combinedToken) return;
+        try {
+            const header = document.createElement('div');
+            header.className = 'combined-doc-header';
+            header.textContent = doc.coverPage === null ? `${doc.baseName} — no cover` : doc.baseName;
+            frag.appendChild(header);
 
-        const header = document.createElement('div');
-        header.className = 'combined-doc-header';
-        header.textContent = doc.coverPage === null ? `${doc.baseName} — no cover` : doc.baseName;
-        frag.appendChild(header);
+            const cover = await getCoverHiRes(doc);
+            if (token !== combinedToken) return;
 
-        const cover = await getCoverHiRes(doc);
-        if (token !== combinedToken) return;
-
-        const citations = [...doc.selectedCitations].sort((a, b) => a - b);
-        for (const ci of citations) {
+            const citations = [...doc.selectedCitations].sort((a, b) => a - b);
+            for (const ci of citations) {
+                if (token !== combinedToken) return;
+                const page = await doc.pdfDoc.getPage(ci + 1);
+                if (token !== combinedToken) return;
+                const card =
+                    doc.mode === 'sidebyside'
+                        ? await buildSideBySideCard(doc, page, cover, ci, containerW)
+                        : await buildTopCard(doc, page, cover, ci, containerW, false);
+                if (token !== combinedToken) return;
+                frag.appendChild(card);
+                card.dataset.docId = doc.id; // combined-view cards navigate to their workspace
+                card.setAttribute('role', 'button');
+                card.tabIndex = 0;
+                card.title = 'Open this page';
+            }
+        } catch (err) {
+            // The doc was removed mid-render — abandon just this doc, not the whole view.
             if (token !== combinedToken) return;
-            const page = await doc.pdfDoc.getPage(ci + 1);
-            if (token !== combinedToken) return;
-            const card =
-                doc.mode === 'sidebyside'
-                    ? await buildSideBySideCard(doc, page, cover, ci, containerW)
-                    : await buildTopCard(doc, page, cover, ci, containerW, false);
-            if (token !== combinedToken) return;
-            frag.appendChild(card);
-            card.dataset.docId = doc.id; // combined-view cards navigate to their workspace
-            card.setAttribute('role', 'button');
-            card.tabIndex = 0;
-            card.title = 'Open this page';
+            console.warn('Combined render skipped a document:', err);
         }
     }
 

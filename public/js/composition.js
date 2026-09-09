@@ -58,17 +58,32 @@ export function clampTransform(t, pageRect, coverAspect) {
 
 // --- rendering primitives ---------------------------------------------------
 
+// pdf.js rejects/cancels concurrent render() calls on the SAME page object, and the app has
+// several asynchronous render entry points (workspace preview, combined preview, cover
+// cache, thumbnails) that can race on one page. This per-page queue serializes them so a
+// collision is impossible; cancelled/abandoned higher-level renders simply drain in order.
+const pageRenderQueues = new WeakMap();
+
+export function queuePageRender(page, task) {
+    const prev = pageRenderQueues.get(page) || Promise.resolve();
+    const run = prev.then(task, task); // a failed earlier render must not poison the chain
+    pageRenderQueues.set(page, run.catch(() => {}));
+    return run;
+}
+
 /** Render a pdf.js page to a fresh canvas at the given render scale (raw, no CSS sizing). */
 export async function renderPageAtScale(page, scale) {
-    const vp = page.getViewport({ scale });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(vp.width));
-    canvas.height = Math.max(1, Math.round(vp.height));
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    return canvas;
+    return queuePageRender(page, async () => {
+        const vp = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(vp.width));
+        canvas.height = Math.max(1, Math.round(vp.height));
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        return canvas;
+    });
 }
 
 /** Render a pdf.js page to a fresh canvas sized for crisp display at `cssWidth`. */
@@ -96,14 +111,17 @@ export async function getCoverHiRes(doc, minWidth = 0) {
     const page = await doc.pdfDoc.getPage(doc.coverPage + 1);
     const native = pageNativeSize(page);
     const scale = target / native.width;
-    const vp = page.getViewport({ scale });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(vp.width));
-    canvas.height = Math.max(1, Math.round(vp.height));
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const canvas = await queuePageRender(page, async () => {
+        const vp = page.getViewport({ scale });
+        const cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(vp.width));
+        cv.height = Math.max(1, Math.round(vp.height));
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        return cv;
+    });
 
     doc._coverHiRes = { page: doc.coverPage, canvas, dataURL: canvas.toDataURL('image/png'), native };
     return doc._coverHiRes;
@@ -136,8 +154,10 @@ export async function composeSideBySide(citationPage, cover, halfCssWidth) {
 
     // Citation on the left.
     const scale = halfPx / native.width;
-    const vp = citationPage.getViewport({ scale });
-    await citationPage.render({ canvasContext: ctx, viewport: vp }).promise;
+    await queuePageRender(citationPage, async () => {
+        const vp = citationPage.getViewport({ scale });
+        await citationPage.render({ canvasContext: ctx, viewport: vp }).promise;
+    });
 
     // Cover on the right, stretched to the same box (equal size, flush — no separator).
     if (cover) ctx.drawImage(cover.canvas, halfPx, 0, halfPx, hPx);

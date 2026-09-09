@@ -8,7 +8,7 @@
 //
 // To force a fresh shell after a release, bump CACHE_NAME.
 
-const CACHE_NAME = 'pdfw-v8';
+const CACHE_NAME = 'pdfw-v9';
 
 const PRECACHE = [
     '/',
